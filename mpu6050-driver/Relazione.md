@@ -5,13 +5,12 @@
 Per stabilizzare l'_aereo_ è necessario conoscere il suo orientamento nello spazio.
 Per far questo è sufficiente conoscere le velocità di rotazione durante il _rollio_ (**roll**), il _beccheggio_ (**pitch**) e l'_imbardata_ (**yaw**).
 
-Il _giroscopio_ è un sensore in grado di registrare questi tassi di rotazione
 Un sensore in grado di registrare questi tassi di rotazione è il **giroscopio**, nel mio caso è comodamente integrato nell'MPU6050.
 
 ## Obiettivo
 
 Lo scopo del progetto è quello di scrivere un semplice driver per l'MPU6050 per misurare il tasso di rotazione (in gradi/secondo) durante rollio, beccheggio e imbardata, in modo da
-comprendere bene il funzionamento di un sensore attraverso la lettura del data-sheet.
+comprendere bene il funzionamento di un sensore attraverso la lettura del data-sheet e della sua implementazione.
 
 ## Realizzazione
 
