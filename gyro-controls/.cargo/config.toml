@@ -3,13 +3,12 @@ target = "riscv32imc-esp-espidf"
 
 [target.riscv32imc-esp-espidf]
 linker = "ldproxy"
-runner = "espflash --monitor /dev/ttyACM0 --speed 115200" # Select this runner for espflash v1.x.x
+runner = "espflash flash -b 115200 -p /dev/ttyACM0 --monitor" # Select this runner for espflash v1.x.x
 rustflags = ["-C", "default-linker-libraries"]
 
 [unstable]
 build-std = ["std", "panic_abort"]
 
 [env]
-# Note: these variables are not used when using pio builder (`cargo build --features pio`)
 ESP_IDF_VERSION = "release/v4.4"
 
