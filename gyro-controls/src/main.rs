@@ -1,4 +1,4 @@
-use esp_idf_hal::delay::{self, FreeRtos};
+use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::gpio::PinDriver;
 use esp_idf_hal::i2c::{I2cConfig, I2cDriver};
 use esp_idf_hal::prelude::*;

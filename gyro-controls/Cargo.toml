@@ -29,10 +29,10 @@ embassy = ["esp-idf-hal?/embassy-sync", "esp-idf-hal?/critical-section", "esp-id
 
 [dependencies]
 log = { version = "0.4.17", default-features = false }
-esp-idf-sys = { version = "0.33", default-features = false }
-esp-idf-hal = { version = "0.41", optional = true, default-features = false }
-esp-idf-svc = { version = "0.46", optional = true, default-features = false }
-embedded-svc = { version = "0.25", optional = true, default-features = false }
+esp-idf-sys = { version = "0.33.2", default-features = false }
+esp-idf-hal = { version = "0.41.2", optional = true, default-features = false }
+esp-idf-svc = { version = "0.46.2", optional = true, default-features = false }
+embedded-svc = { version = "0.25.3", optional = true, default-features = false }
 mpu6050 = "0.1.6"
 embedded-hal = "0.2.7"
 
