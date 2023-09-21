@@ -2,6 +2,7 @@ use anyhow::Result;
 use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::prelude::*;
 use esp_idf_sys as _;
+use log::info;
 use servo_driver::ServoSG90; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 
 fn main() -> Result<()> {
@@ -19,6 +20,10 @@ fn main() -> Result<()> {
     loop {
         for i in 0..180 {
             servo.write_angle(i)?;
+
+            info!("Writing angle {}", i);
+            info!("Reading angle {}\n", servo.read_angle());
+
             FreeRtos::delay_ms(15)
         }
 
