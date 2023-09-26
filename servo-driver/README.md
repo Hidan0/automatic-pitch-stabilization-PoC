@@ -2,7 +2,7 @@
 
 ## Obiettivo
 
-Lo scopo della libreria è quello di implementare un semplice driver per il motore servo SG90, data l'assenza di *crate* pubbliche.
+Lo scopo della libreria è quello di implementare un semplice driver per il motore servo SG90, data l'assenza di _crate_ pubbliche.
 
 ## Implementazione
 
@@ -18,15 +18,13 @@ A differenza di `mpu6050-driver`, il driver non è stato realizzato utilizzando 
 
 #### PWM
 
-Il processo di creazione del controllore PWM è semplice e diretto, due sono le strutture dati necessarie da creare: 
+Il processo di creazione del controllore PWM è semplice e diretto, due sono le strutture dati necessarie da creare:
 
 - `LedcTimerDriver`: la configurazione del timer;
 
 - `LedcDriver`: il driver effettivo.
 
-
-
-`LedcTimerDriver` necessita di scegliere uno dei quattro *timer* ([LED PWM Controller](https://www.espressif.com/sites/default/files/documentation/esp32-c3_technical_reference_manual_en.pdf#ledpwm)) di sistema e di configurarlo:
+`LedcTimerDriver` necessita di scegliere uno dei quattro _timer_ ([LED PWM Controller](https://www.espressif.com/sites/default/files/documentation/esp32-c3_technical_reference_manual_en.pdf#ledpwm)) di sistema e di configurarlo:
 
 ```rust
 ...
@@ -39,17 +37,16 @@ let timer_driver = LedcTimerDriver::<'d>::new(
 ...
 ```
 
-Due sono i parametri fondamentali: la *frequenza* e la *duty resolution*. Impostare la frequenza del timer è un'operazione diretta dato che è riportata all'interno del data sheet del SG90 ed è pari a: $\frac{1}{20ms}=50Hz$.
+Due sono i parametri fondamentali: la _frequenza_ e la _duty resolution_. Impostare la frequenza del timer è un'operazione diretta dato che è riportata all'interno del data sheet del SG90 ed è pari a: $\frac{1}{20ms}=50Hz$.
 
-La scelta della *duty resolution* richiede una considerazione aggiuntiva dato che, come scritto all'interno della documentazione del'ESP32C3, la frequenza e la *duty resolution* sono interdipendenti.
+La scelta della _duty resolution_ richiede una considerazione aggiuntiva dato che, come scritto all'interno della documentazione del'ESP32C3, la frequenza e la _duty resolution_ sono interdipendenti.
 
 > "The frequency and the duty resolution are interdependent. The higher the PWM frequency, the lower the duty resolution which is available, and vice versa."
 
-Il valore di 9 bits (`Resolution::Bits9`) è stato scelto tramite *trial and error*, grazie ai messaggi di errore dell'API di LEDC, che è progettata per segnalare un errore quando si tenta di impostare una frequenza e una risoluzione di lavoro che superano l'intervallo dell'hardware del LEDC. specificando se abbassare o aumentare tali valori.
+Il valore di bits iniziale (`Resolution::Bits9`) è stato scelto tramite _trial and error_, grazie ai messaggi di errore dell'API di LEDC, che è progettata per segnalare un errore quando si tenta di impostare una frequenza e una risoluzione di lavoro che superano l'intervallo dell'hardware del LEDC, specificando se abbassare o aumentare tali valori.
+Successivamente è stato scelto come valore finale 11 bits (`Resolution::Bits11`), dato che nelle conversioni garantisce una precisione maggiore.
 
-
-
-Il passo finale è quello di creare l'effettivo driver (`LedcDriver`) che necessita di selezionare il *canale*, il *gpio* su cui erogare la PWM e infine il driver del timer configurato precedentemente.
+Il passo finale è quello di creare l'effettivo driver (`LedcDriver`) che necessita di selezionare il _canale_, il _gpio_ su cui erogare la PWM e infine il driver del timer configurato precedentemente.
 
 ```rust
 ...
@@ -67,10 +64,10 @@ $$
 \alpha_{us} = (\frac{\alpha}{180}*(2500-500))+500
 $$
 
-Il secondo step è quello di mappare l'angolo in microsecondi all'interno dell'intervallo $0...2^9-1$, ovvero la *duty resolution* (`Resolution::Bits9`)
+Il secondo step è quello di mappare l'angolo in microsecondi all'interno dell'intervallo $0...2^9-1$, ovvero la _duty resolution_ (`Resolution::Bits9`)
 
 $$
-duty = \alpha_{us} * (2^9-1) / 20000 = \alpha_{us} * 511 / 20000
+duty = \alpha_{us} * (2^{11}-1) / 20000 = \alpha_{us} * 2047 / 20000
 $$
 
 Tramite queste due formule è possible scrivere la funzione che, dato l'angolo, faccia muovere il servomotore in quella (circa) posizione:
@@ -85,12 +82,10 @@ pub fn write_angle(&mut self, angle: u32) -> Result<()> {
 }
 ```
 
-
-
 Le formule per il processo inverso sono piuttosto semplici da ottenere:
 
 $$
-\alpha_{us} = 20000*duty/(2^9-1)=20000*duty/511
+\alpha_{us} = 20000*duty/(2^{11}-1)=20000*duty/2047
 $$
 
 $$
@@ -112,34 +107,28 @@ In questo caso occorre considerare l'errore dato dalle conversioni da `u32` a `f
 
 ```log
 ...
-I (336) servo_driver: Writing angle 0
-I (336) servo_driver: Reading angle 0
+I (335) servo_driver: Writing angle 0
+I (335) servo_driver: Reading angle 0
 
-I (356) servo_driver: Writing angle 1
-I (356) servo_driver: Reading angle 0
+I (355) servo_driver: Writing angle 1
+I (355) servo_driver: Reading angle 0
 
-I (376) servo_driver: Writing angle 2
-I (376) servo_driver: Reading angle 0
+I (375) servo_driver: Writing angle 2
+I (375) servo_driver: Reading angle 1
 
-I (396) servo_driver: Writing angle 3
-I (396) servo_driver: Reading angle 0
+I (395) servo_driver: Writing angle 3
+I (395) servo_driver: Reading angle 2
 
-I (416) servo_driver: Writing angle 4
-I (416) servo_driver: Reading angle 0
+I (415) servo_driver: Writing angle 4
+I (415) servo_driver: Reading angle 3
 
-I (436) servo_driver: Writing angle 5
-I (436) servo_driver: Reading angle 4
+I (435) servo_driver: Writing angle 5
+I (435) servo_driver: Reading angle 4
 
-I (456) servo_driver: Writing angle 6
-I (456) servo_driver: Reading angle 4
+I (455) servo_driver: Writing angle 6
+I (455) servo_driver: Reading angle 5
 
-I (476) servo_driver: Writing angle 7
-I (476) servo_driver: Reading angle 4
-
-I (496) servo_driver: Writing angle 8
-I (496) servo_driver: Reading angle 7
-
-I (516) servo_driver: Writing angle 9
-I (516) servo_driver: Reading angle 7
+I (475) servo_driver: Writing angle 7
+I (475) servo_driver: Reading angle 6
 ...
 ```

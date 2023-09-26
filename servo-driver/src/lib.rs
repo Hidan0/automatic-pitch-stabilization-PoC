@@ -9,6 +9,7 @@ pub const MAX_DUTY_US: f32 = 2500.;
 pub const MIN_DUTY_US: f32 = 500.;
 pub const MAX_ANGLE: f32 = 180.;
 pub const FREQ: f32 = 20_000.;
+pub const RESOLUTION: Resolution = Resolution::Bits11;
 
 pub struct ServoSG90<'d> {
     driver: LedcDriver<'d>,
@@ -25,11 +26,11 @@ impl<'d> ServoSG90<'d> {
             timer,
             &TimerConfig::default()
                 .frequency(50.Hz())
-                .resolution(Resolution::Bits9),
+                .resolution(RESOLUTION),
         )?;
 
         let driver = LedcDriver::new(channel, timer_driver, gpio)?;
-        let max_duty = driver.get_max_duty();
+        let max_duty = driver.get_max_duty() - 1;
 
         Ok(Self { driver, max_duty })
     }
