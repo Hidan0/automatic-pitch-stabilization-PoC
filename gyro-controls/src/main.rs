@@ -1,4 +1,4 @@
-use esp_idf_hal::delay::FreeRtos;
+use esp_idf_hal::delay::Delay;
 use esp_idf_hal::gpio::PinDriver;
 use esp_idf_hal::i2c::{I2cConfig, I2cDriver};
 use esp_idf_hal::prelude::*;
@@ -22,9 +22,18 @@ fn main() {
 
     let mut gyro_controls = GyroControls::init(i2c, &mut cal_led);
 
+    let mut last_roll_rate = 0.;
+    let mut roll_angle = 0.;
+
+    const DELTA_TIME: f32 = 0.004;
+
     loop {
-        let (r, _, _) = gyro_controls.get_gyro();
-        println!("{}", r);
-        FreeRtos::delay_ms(50);
+        let (roll_rate, _, _) = gyro_controls.get_gyro();
+        roll_angle += 0.5 * (roll_rate + last_roll_rate) * DELTA_TIME;
+        last_roll_rate = roll_rate;
+
+        println!("{}", roll_angle.to_degrees(),);
+
+        Delay::delay_ms(4);
     }
 }
