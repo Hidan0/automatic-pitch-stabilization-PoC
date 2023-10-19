@@ -10,5 +10,5 @@ rustflags = ["-C", "default-linker-libraries"]
 build-std = ["std", "panic_abort"]
 
 [env]
-ESP_IDF_VERSION = "release/v4.4"
-
+ESP_IDF_VERSION = "v4.4.5"
+ESP_IDF_TOOLS_INSTALL_DIR = { value = "global" }
