@@ -8,9 +8,9 @@
 - MPU6050
 - Led 1x
 
-### Driver MPU6050 from scratch
+### Driver MPU6050 "from scratch"
 
-Inizialmente si è voluto scrivere un semplice driver per l'MPU6050 per misurare il tasso di rotazione (in gradi/secondo) durante il rollio, beccheggio e imbardata, in modo da comprendere bene il funzionamento di un sensore attraverso la lettura del data-sheet e della sua implementazione.
+Inizialmente ho voluto scrivere un semplice driver per l'MPU6050 per misurare il tasso di rotazione durante il rollio, beccheggio e imbardata, in modo da comprendere bene il funzionamento del sensore attraverso la lettura del data-sheet e della sua implementazione.
 
 #### Implementazione
 
@@ -18,7 +18,7 @@ Per creare un driver che sia -- potenzialmente -- completo e utilizzabile all'in
 
 ##### I2C
 
-La comunicazione _I2C_ è effettuata tramite la combinazione dei _trait_ (un _trait_ può essere visto come un'_interfaccia_, rappresenta una capacità) `i2c::WriteRead` e `i2c::Write` del'_hal_.
+La comunicazione _I2C_ è stata implementata tramite la combinazione dei _trait_ (un _trait_ può essere visto come un'_interfaccia_, rappresenta una capacità) `i2c::WriteRead` e `i2c::Write` dell'astrazione hardware.
 
 ```rust
 #[derive(Debug)]
@@ -35,7 +35,7 @@ where
 }
 ```
 
-Per semplificarne l'utilizzo sono stati realizzati i seguenti metodi:
+Per semplificarne l'utilizzo ho realizzato i seguenti metodi:
 
 ```rust
 fn write_byte(&mut self, register: u8, byte: u8) -> Result<(), E> {
@@ -55,7 +55,7 @@ fn read_2c_word(&mut self, register: u8) -> Result<i16, E> {
 }
 ```
 
-`write_byte` e `read_2c_word` sono due metodi helper rispettivamente per la scrittura di un byte su un registro e per la lettura di una parola (2 byte) interpretata come complemento a due.
+`write_byte` e `read_2c_word` sono due helper rispettivamente per la scrittura di un byte su un registro e per la lettura di una parola (2 byte) interpretata come complemento a due.
 
 ##### Gestione del driver
 
@@ -65,7 +65,7 @@ La procedura generale per la gestione del driver è piuttosto semplice:
 2. identificare nella mappa dei registri la funzionalità di cui si è interessati;
 3. una volta identificata la funzionalità desiderata basterà costruire il byte secondo le indicazioni della sezione ed inviarlo presso il registro a cui fa riferimento.
 
-Si consideri ad esempio l'istruzione per impostare il filtro passa basso, analizzando le costanti definite:
+Consideriamo ad esempio l'istruzione per impostare il filtro passa basso e analizziamo le costanti definite:
 
 ```rust
 /// Mpu6050 device address
@@ -113,7 +113,7 @@ fn calibrate<D: DelayMs<u8>>(&mut self, delay: &mut D) -> Result<(), E> {
 }
 ```
 
-Per la calibrare del giroscopio, si determina un valore di riferimento per il tasso di rotazione quando il sensore è **fermo**, che idealmente dovrebbe essere pari a zero. Poiché le misure del giroscopio tendono a fluttuare a causa di piccole vibrazioni ambientali, si calcola la media di un gran numero di valori. Il valore medio viene poi sottratto da tutte le future misurazioni per compensare le fluttuazioni e ottenere una misura più accurata.
+Per la calibrazione del giroscopio, si determina un valore di riferimento per il tasso di rotazione quando il sensore è **fermo**, che idealmente dovrebbe essere pari a zero. Poiché le misure del giroscopio tendono a fluttuare a causa di piccole vibrazioni ambientali, si calcola la media di un gran numero di valori. Il valore medio viene poi sottratto da tutte le future misurazioni per compensare le fluttuazioni e ottenere una misura più accurata.
 
 ```rust
 pub fn gyro(&mut self) -> Result<(f32, f32, f32), E> {
@@ -128,8 +128,7 @@ pub fn gyro(&mut self) -> Result<(f32, f32, f32), E> {
 
 #### Conclusione
 
-La scrittura del driver di un sensore è un'operazione complessa che permette di capire a 360 gradi il funzionamento del modulo e di realizzare librerie ad hoc per esigenze specifiche.
-Questo progetto non richiede ne funzionalità particolari e neppure prestazioni particolarmente elevate, quindi è sufficiente utilizzare librerie preesistenti come [_mpu6050_](https://crates.io/crates/mpu6050).
+La scrittura del driver di un sensore è un'operazione complessa che permette di capire a 360 gradi il funzionamento del modulo e di realizzare librerie ad hoc per esigenze specifiche. Dato che questo progetto non richiede ne funzionalità particolari e neppure prestazioni particolarmente elevate, è sufficiente utilizzare librerie preesistenti come [_mpu6050_](https://crates.io/crates/mpu6050).
 
 ### Modulo gyro-controls
 
@@ -199,11 +198,11 @@ fn setup_mpu<D: DelayMs<u8>>(
 
 Nell'illustrazione soprastante è evidente come i dati acquisiti dal sensore in uno stato "fermo" manifestino un'oscillazione leggermente sotto lo zero, situandosi nell'intervallo compreso tra $0.001$ e $-0.008$.
 
-Al fine di minimizzare il discostamento delle misurazioni effettuate dal sensore in stato di inattività rispetto allo zero, è stato adottato lo stesso approccio di calibrazione utilizzato [precedentemente](#calibrazione): si esegue una misurazione, si attende per un millisecondo e successivamente viene calcolata la media delle letture raccolte nel corso di diverse iterazioni. Una volta completata la fase di calcolo, si provvede a spegnere il LED di controllo e a restituire i valori ottenuti dal processo di calibrazione.
+Al fine di minimizzare il discostamento delle misurazioni effettuate dal sensore in stato di inattività rispetto allo zero, ho adottato lo stesso approccio di calibrazione utilizzato [precedentemente](#calibrazione): eseguire una misurazione, attendere per un millisecondo e successivamente calcolare la media delle letture raccolte nel corso di diverse iterazioni. Una volta completata la fase di calcolo, provvedo a spegnere il LED di controllo e a restituire i valori ottenuti dal processo di calibrazione.
 
 ###### Test di calibrazione
 
-Nel corso dei test di calibrazione svolti, è stato adottato un approccio che coinvolgeva tre set distinti di misurazioni: 500, 1000 e 2000. L'analisi delle rispettive letture in tutti e tre i test dimostra che queste presentano fluttuazioni tanto al di sopra quanto al di sotto dello zero. In contrasto, non si osserva un incremento sostanziale nell'abbattimento dell'intervallo di errore, che rimane approssimativamente compreso tra $0.003$ e $-0.004$.
+Nel corso dei test di calibrazione svolti, ho adottato un approccio che coinvolgeva tre set distinti di misurazioni: 500, 1000 e 2000. L'analisi delle rispettive letture in tutti e tre i test dimostra che queste presentano fluttuazioni tanto al di sopra quanto al di sotto dello zero. In contrasto, non ho osservato un incremento sostanziale nell'abbattimento dell'intervallo di errore, che rimane approssimativamente compreso tra $0.003$ e $-0.004$.
 
 - 500 misurazioni:
   ![Test di calibrazione, 500 misurazioni](./imgs/test_500_calibrations.png)
@@ -212,7 +211,7 @@ Nel corso dei test di calibrazione svolti, è stato adottato un approccio che co
 - 2000 misurazioni:
   ![Test di calibrazione, 2000 misurazioni](./imgs/test_2000_calibrations.png)
 
-È pertinente osservare che il processo di calibrazione richiede un certo lasso di tempo, poiché ogni misurazione comporta un ritardo di $1ms$. Sebbene in teoria sarebbe necessario attendere $0.5s$ per il test con 500 misurazioni, $1s$ per quello con 1000 e $2s$ per quello con 2000, in pratica si verifica un rallentamento a causa delle operazioni matematiche coinvolte. Di conseguenza, il tempo effettivo si attesta a circa $1s$ per 500 misurazioni, circa $2s$ per 1000 e circa $4s$ per 2000. Dal momento che l'incremento delle misurazioni non conduce a un vantaggio considerevole, si è deciso di adottare il set di 500 misurazioni per la calibrazione.
+Un'altra cosa da tenere presente è che il processo di calibrazione richiede un certo lasso di tempo, poiché ogni misurazione comporta un ritardo di $1ms$. Sebbene in teoria sarebbe necessario attendere $0.5s$ per il test con 500 misurazioni, $1s$ per quello con 1000 e $2s$ per quello con 2000, in pratica si verifica un rallentamento a causa delle operazioni matematiche coinvolte. Di conseguenza, il tempo effettivo si attesta a circa $1s$ per 500 misurazioni, circa $2s$ per 1000 e circa $4s$ per 2000. Dal momento che l'incremento delle misurazioni non conduce a un vantaggio considerevole, ho deciso di adottare il set di 500 misurazioni per la calibrazione.
 
 ```rust
 fn calibrate_gyro<D: DelayMs<u16>>(
@@ -242,7 +241,7 @@ fn calibrate_gyro<D: DelayMs<u16>>(
 
 ##### Stima dell'angolo e conclusioni
 
-Si prosegue con la verifica del funzionamento del modulo appena sviluppato.
+Successivamente ho scritto una piccola demo per testare l'utilizzo del modulo appena scritto.
 
 ```rust
 fn main() {
@@ -290,9 +289,9 @@ $$
 
 - Dato che le misurazioni del giroscopio sono in $rad/s$ è necessario convertirle in gradi: `roll_angle.to_degrees()`.
 
-Dopo aver condotto vari test e effettuato movimenti della breadboard lungo l'asse $x$, è chiaro che questa soluzione non è adatta per una stima a lungo termine, in quanto si osserva un notevole accumulo di errore nel tempo. Tale accumulo è osservabile anche quando la breadboard rimane immobile, seppur in misura minore. L'errore riscontrato è attribuibile al fatto che i sensori giroscopici misurano principalmente la velocità angolare, ovvero il tasso di variazione dell'angolo, e non l'orientamento assoluto. 
+Dopo aver condotto vari test e effettuato movimenti della breadboard lungo l'asse $x$, è chiaro che questa soluzione non è adatta per una stima a lungo termine, in quanto ho potuto osservare un notevole accumulo di errore nel tempo. Tale accumulo è osservabile anche quando la breadboard rimane immobile, seppur in misura minore. L'errore riscontrato è attribuibile al fatto che i sensori giroscopici misurano principalmente la velocità angolare, ovvero il tasso di variazione dell'angolo, e non l'orientamento assoluto. 
 
-In considerazione di queste limitazioni, si è valutato l'utilizzo dell'**accelerometro** come alternativa per calcolare l'orientamento assoluto.
+In considerazione di queste limitazioni, ho valutato l'utilizzo dell'**accelerometro** come alternativa per calcolare l'orientamento assoluto.
 
 ### Modulo gyro-controls: stima tramite accelerometro
 
