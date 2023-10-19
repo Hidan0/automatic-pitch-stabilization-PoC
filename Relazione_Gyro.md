@@ -1,11 +1,5 @@
 # Relazione - Parte Giroscopio
 
-## Intro
-
-Per stabilizzare l'_aereo_ è necessario conoscere il suo orientamento nello spazio, ovvero l'angolo di rotazione applicato sui tre assi $x$, $y$ e $z$, detti rispettivamente _rollio_ (**roll**, $x$), _beccheggio_ (**pitch**, $y$) e _imbardata_ (**yaw**, $z$).
-
-Un sensore in grado di registrare tali tassi di rotazione è il **giroscopio**, nel caso di questo progetto, _comodamente_ integrato nel modulo MPU6050.
-
 ## Materiale utilizzato
 
 - [MPU6050 data sheet](https://arduino.ua/docs/RM-MPU-6000A.pdf)
@@ -286,6 +280,7 @@ fn main() {
 ```
 
 Il codice soprastante stima l'angolo di rollio ($r$) approssimando l'integrale definito in tempo discreto:
+
 $$
 r \approx \frac{\Delta t}{2} [f(t_0)+2f(t_1)+ \dots+2f(t_{n-1})+f(t_n)]
 $$
@@ -301,3 +296,27 @@ In considerazione di queste limitazioni, si è valutato l'utilizzo dell'**accele
 
 ### Modulo gyro-controls: stima tramite accelerometro
 
+L'**accelerometro** è un sensore in grado di misurare l'accelerazione lineare di un oggetto e può essere utilizzato per calcolare l'orientamento assoluto di un oggetto lungo due assi: $x$ e $y$ (per farlo lungo l'asse $z$ è necessario un **magnetometro**).
+
+L'implementazione è semplice e diretta dato che la libreria _mpu6050_ offre di base il metodo per calcolare la stima di rollio e beccheggio; le uniche operazioni aggiuntive da fare sono il settaggio della sensibilità dell'accelerometro e la conversione da $rad/s$ a gradi.
+
+```rust
+fn setup_mpu<D: DelayMs<u8>>(
+    delay: &mut D,
+    i2c: I2cDriver<'static>,
+) -> Mpu6050<I2cDriver<'static>> {
+    ...
+    mpu.set_accel_range(mpu6050::device::AccelRange::G8)
+    .unwrap();
+
+    mpu
+}
+```
+
+```rust
+pub fn get_orientation(&mut self) -> (f32, f32) {
+    let angles = self.mpu.get_acc_angles().unwrap();
+
+    (angles.x.to_degrees(), angles.y.to_degrees())
+}
+```

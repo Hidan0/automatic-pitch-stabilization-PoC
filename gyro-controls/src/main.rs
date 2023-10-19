@@ -22,17 +22,10 @@ fn main() {
 
     let mut gyro_controls = GyroControls::init(i2c, &mut cal_led);
 
-    let mut last_roll_rate = 0.;
-    let mut roll_angle = 0.;
-
-    const DELTA_TIME: f32 = 0.004;
-
     loop {
-        let (roll_rate, _, _) = gyro_controls.get_gyro();
-        roll_angle += 0.5 * (roll_rate + last_roll_rate) * DELTA_TIME;
-        last_roll_rate = roll_rate;
+        let orientation = gyro_controls.get_orientation();
 
-        println!("{}", roll_angle.to_degrees(),);
+        println!("{:.4} {:.4}", orientation.0, orientation.1);
 
         Delay::delay_ms(4);
     }
