@@ -53,7 +53,7 @@ impl GyroControls {
     pub fn get_orientation(&mut self) -> (f32, f32) {
         let angles = self.mpu.get_acc_angles().unwrap();
 
-        (angles.x.to_degrees(), angles.y.to_degrees())
+        (angles.x, angles.y)
     }
 
     fn calibrate_gyro<D: DelayMs<u16>>(
