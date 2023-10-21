@@ -7,8 +7,8 @@ use gyro_controls::gyro_controls::GyroControls;
 
 const DELTA_T: f32 = 0.004;
 
-const SD_R_RATE: f32 = 4.; // Standard Deviation of the rotation rate r
-const SD_ACCEL: f32 = 3.; // Standard Deviation of the accelerometer
+const SD_R_RATE: f32 = 0.06; // Standard Deviation of the rotation rate r
+const SD_ACCEL: f32 = 0.05; // Standard Deviation of the accelerometer
 
 fn main() {
     esp_idf_sys::link_patches();
@@ -46,7 +46,7 @@ fn main() {
 
         println!(
             "{},{},{}",
-            predicted_angle.to_degrees() + 0.5, // offset to make it visible
+            predicted_angle.to_degrees(), // offset to make it visible
             roll_angle.to_degrees(),
             integrated_angle.to_degrees()
         );

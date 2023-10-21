@@ -1,5 +1,7 @@
 # Relazione - Parte Giroscopio
 
+[TOC]
+
 ## Materiale utilizzato
 
 - [MPU6050 data sheet](https://arduino.ua/docs/RM-MPU-6000A.pdf)
@@ -8,15 +10,15 @@
 - MPU6050
 - Led 1x
 
-### Driver MPU6050 "from scratch"
+## Driver MPU6050 "from scratch"
 
 Inizialmente ho voluto scrivere un semplice driver per l'MPU6050 per misurare il tasso di rotazione durante il rollio, beccheggio e imbardata, in modo da comprendere bene il funzionamento del sensore attraverso la lettura del data-sheet e della sua implementazione.
 
-#### Implementazione
+### Implementazione
 
 Per creare un driver che sia -- potenzialmente -- completo e utilizzabile all'interno dell'ecosistema embedded in Rust, questo deve basarsi sulla libreria [embedded-hal](https://github.com/rust-embedded/embedded-hal). Il vantaggio di utilizzare tale astrazione hardware è che rende lo sviluppo della libreria indipendente dalla piattaforma.
 
-##### I2C
+#### I2C
 
 La comunicazione _I2C_ è stata implementata tramite la combinazione dei _trait_ (un _trait_ può essere visto come un'_interfaccia_, rappresenta una capacità) `i2c::WriteRead` e `i2c::Write` dell'astrazione hardware.
 
@@ -57,7 +59,7 @@ fn read_2c_word(&mut self, register: u8) -> Result<i16, E> {
 
 `write_byte` e `read_2c_word` sono due helper rispettivamente per la scrittura di un byte su un registro e per la lettura di una parola (2 byte) interpretata come complemento a due.
 
-##### Gestione del driver
+#### Gestione del driver
 
 La procedura generale per la gestione del driver è piuttosto semplice:
 
@@ -93,7 +95,7 @@ self.write_byte(DLPF_ADDR, DLPF_CFG_GYR_5)?;
   |-|-|-|-|-|-|-|-|
   |0|0|0|0|0|**1**|**0**|**1**|
 
-##### Calibrazione
+#### Calibrazione
 
 ```rust
 fn calibrate<D: DelayMs<u8>>(&mut self, delay: &mut D) -> Result<(), E> {
@@ -126,15 +128,15 @@ pub fn gyro(&mut self) -> Result<(f32, f32, f32), E> {
 }
 ```
 
-#### Conclusione
+### Conclusione
 
 La scrittura del driver di un sensore è un'operazione complessa che permette di capire a 360 gradi il funzionamento del modulo e di realizzare librerie ad hoc per esigenze specifiche. Dato che questo progetto non richiede ne funzionalità particolari e neppure prestazioni particolarmente elevate, è sufficiente utilizzare librerie preesistenti come [_mpu6050_](https://crates.io/crates/mpu6050).
 
-### Modulo gyro-controls
+## Stima dell'angolo con giroscopio
 
 Questo primo approccio alla creazione del modulo consiste nell'utilizzare la libreria _mpu6050_ per mettere in comunicazione il sensore con la board tramite _I2C_, realizzare una calibrazione "naive" segnalata da un led e ottenere i tassi di rotazione di rollio, beccheggio e imbardata (da qui in avanti definiti come $r$, $p$, $y$).
 
-#### Vista breadboard
+### Vista breadboard
 
 ![Circuito 1 gyro-controls](./imgs/gyro_circ1.png)
 
@@ -163,11 +165,11 @@ I collegamenti sono i seguenti:
   - `5` -> _SCL_
   - `4` -> _SDA_
 
-#### Implementazione
+### Implementazione
 
 > NB: Gli snippet di codice presente in questa sezione non presentano il controllo degli errori per semplicità
 
-##### Setup del sensore
+#### Setup del sensore
 
 Inizialmente, si procede con la creazione dell'istanza dell'oggetto `Mpu6050`. A tal fine, si fornisce il driver _I2C_ come argomento a questa istanza. Subito dopo, occorre dare il via all'inizializzazione dell'oggetto e alla sua successiva configurazione. Questo procedimento implica:
 
@@ -192,7 +194,7 @@ fn setup_mpu<D: DelayMs<u8>>(
 }
 ```
 
-##### Calibrazione
+#### Calibrazione
 
 ![Sensore fermo, nessuna calibrazione](./imgs/no_calibration.png)
 
@@ -200,7 +202,7 @@ Nell'illustrazione soprastante è evidente come i dati acquisiti dal sensore in 
 
 Al fine di minimizzare il discostamento delle misurazioni effettuate dal sensore in stato di inattività rispetto allo zero, ho adottato lo stesso approccio di calibrazione utilizzato [precedentemente](#calibrazione): eseguire una misurazione, attendere per un millisecondo e successivamente calcolare la media delle letture raccolte nel corso di diverse iterazioni. Una volta completata la fase di calcolo, provvedo a spegnere il LED di controllo e a restituire i valori ottenuti dal processo di calibrazione.
 
-###### Test di calibrazione
+##### Test di calibrazione
 
 Nel corso dei test di calibrazione svolti, ho adottato un approccio che coinvolgeva tre set distinti di misurazioni: 500, 1000 e 2000. L'analisi delle rispettive letture in tutti e tre i test dimostra che queste presentano fluttuazioni tanto al di sopra quanto al di sotto dello zero. In contrasto, non ho osservato un incremento sostanziale nell'abbattimento dell'intervallo di errore, che rimane approssimativamente compreso tra $0.003$ e $-0.004$.
 
@@ -239,7 +241,7 @@ fn calibrate_gyro<D: DelayMs<u16>>(
 }
 ```
 
-##### Stima dell'angolo e conclusioni
+#### Stima dell'angolo e conclusioni
 
 Successivamente ho scritto una piccola demo per testare l'utilizzo del modulo appena scritto.
 
@@ -261,39 +263,40 @@ fn main() {
 
     let mut gyro_controls = GyroControls::init(i2c, &mut cal_led);
 
-    let mut last_roll_rate = 0.;
     let mut roll_angle = 0.;
 
     const DELTA_TIME: f32 = 0.004;
 
     loop {
         let (roll_rate, _, _) = gyro_controls.get_gyro();
-        roll_angle += 0.5 * (roll_rate + last_roll_rate) * DELTA_TIME;
-        last_roll_rate = roll_rate;
+        roll_angle = roll_angle + roll_rate * DELTA_TIME;
 
-        println!("{}", roll_angle.to_degrees(),);
+        println!("{}", roll_angle.to_degrees());
 
         Delay::delay_ms(4);
     }
 }
 ```
 
-Il codice soprastante stima l'angolo di rollio ($r$) approssimando l'integrale definito in tempo discreto:
+Il codice soprastante stima l'angolo di rollio ($r$) integrando il tasso di rotazione misurato dal giroscopio:
 
 $$
-r \approx \frac{\Delta t}{2} [f(t_0)+2f(t_1)+ \dots+2f(t_{n-1})+f(t_n)]
+roll\_angle = \int_0^{n \cdot \Delta t}roll\_rate \cdot \Delta t
 $$
 
-- La frequenza di aggiornamento è di $250Hz$, quindi il $\Delta t$ tra due misurazioni è pari a $0.004s$;
-- Per semplificare il calcolo si usa lo scalare $0.5$ come $\frac{\Delta t}{2}$;
+Dove il tasso di rotazione (_roll_rate_) è misurato in radianti al secondo, $\Delta t$ è la durata di un'iterazione (la frequenza di aggiornamento è di $250Hz$, quindi il $\Delta t$ tra due misurazioni è pari a $0.004s$) e $n$ è il numero di iterazioni. La discretizzazione di tale integrale è:
+$$
+roll\_angle_n=roll\_angle_{n-1} + roll\_rate_n * \Delta t
+$$
+Dopo aver condotto vari test e effettuato movimenti della breadboard lungo l'asse $x$, è chiaro che questa soluzione non è adatta per una stima a lungo termine, in quanto ho potuto osservare un notevole accumulo di errore nel tempo.
 
-- Dato che le misurazioni del giroscopio sono in $rad/s$ è necessario convertirle in gradi: `roll_angle.to_degrees()`.
+![Rollio integrato](./imgs/integrated_gyro.png)
 
-Dopo aver condotto vari test e effettuato movimenti della breadboard lungo l'asse $x$, è chiaro che questa soluzione non è adatta per una stima a lungo termine, in quanto ho potuto osservare un notevole accumulo di errore nel tempo. Tale accumulo è osservabile anche quando la breadboard rimane immobile, seppur in misura minore. L'errore riscontrato è attribuibile al fatto che i sensori giroscopici misurano principalmente la velocità angolare, ovvero il tasso di variazione dell'angolo, e non l'orientamento assoluto. 
+L'errore deriva dal fatto che ciascuna misura presenta un certo errore, e durante il processo di integrazione, questo errore viene sommato all'angolo precedente ad ogni iterazione. Ciò comporta un progressivo aumento dell'errore cumulativo nel tempo. Un altro problema è che l'integrazione ha bisogno di uno stato iniziale, in questo caso parte sempre da zero gradi.
 
 In considerazione di queste limitazioni, ho valutato l'utilizzo dell'**accelerometro** come alternativa per calcolare l'orientamento assoluto.
 
-### Modulo gyro-controls: stima tramite accelerometro
+## Stima dell'angolo tramite accelerometro
 
 L'**accelerometro** è un sensore in grado di misurare l'accelerazione lineare di un oggetto e può essere utilizzato per calcolare l'orientamento assoluto di un oggetto lungo due assi: $x$ e $y$ (per farlo lungo l'asse $z$ è necessario un **magnetometro**).
 
@@ -319,3 +322,123 @@ pub fn get_orientation(&mut self) -> (f32, f32) {
     (angles.x.to_degrees(), angles.y.to_degrees())
 }
 ```
+
+Utilizzando una demo analoga a quella precedente e tracciando il grafico dell'angolo si ottiene:
+
+![Stima con accelerometro](./imgs/accel_roll.png)
+
+Con questo metodo la misura dell'angolo non è soggetta ai problemi menzionati in precedenza, ma purtroppo ne introduce altri. Sfortunatamente l'accelerometro è estremamente sensibile alle vibrazioni in quanto registra l'accelerazione lineare su ciascun asse.
+
+### Confronto tra giroscopio e accelerometro
+
+![Confronto giroscopio e accelerometro con vibrazione](./imgs/gyro_vs_accel.png)
+
+![Confronto giroscopio e accelerometro "fermi"](./imgs/gyro_vs_accel_still.png)
+
+Legenda:
+
+- In rosso l'angolo misurato dall'accelerometro
+- In blu l'angolo misurato dal giroscopio
+
+Nel primo esperiemnto ho applicato una vibrazione iniziale, successivamente ho ruotato la breadboard lungo l'asse $x$. 
+
+Nel secondo esperimento la breadboard è rimasta ferma per tutta la durata del test.
+
+## Stima dell'angolo con il filtro di Kalman
+
+I metodi analizzati fino ad ora hanno i propri punti di forza e debolezza. L'obiettivo è combinare entrambe le misurazioni attraverso un algoritmo di fusione al fine di bilanciare gli svantaggi con i vantaggi.
+
+> "Il **filtro di Kalman** è un efficiente [filtro](https://it.wikipedia.org/wiki/Filtro_(elettronica)) ricorsivo che valuta lo stato di un [sistema dinamico](https://it.wikipedia.org/wiki/Sistema_dinamico) a partire da una serie di misure soggette a rumore. Per le sue caratteristiche intrinseche è un filtro ottimo per rumori e disturbi agenti su sistemi gaussiani a media nulla."
+>
+> Fonte: Wikipedia
+
+L'idea generale è quella di pesare tramite il *Kalman gain* l'importanza della previsione dell'angolo, attraverso l'integrazione del giroscopio, con l'angolo misurato dall'accelerometro. Poiché il guadagno è un fattore di ponderazione, il suo valore è sempre compreso tra zero e uno. Un guadagno di Kalman elevato attribuisce una grande importanza alla misura (ad esempio, l'accelerometro), mentre un guadagno di Kalman basso attribuisce una maggiore importanza alla previsione (ad esempio, l'integrazione del tasso di rotazione).
+
+```mermaid
+flowchart LR;
+subgraph step0 [Step 0 INITIALIZE]
+    i0(Initial guess of angle and uncertainty)
+end
+subgraph step1 [Step 1 MEASURE]
+    i0-.->i10(Predicted angle)
+    i0-.->i11(Predicted uncertainty)
+    i12(Measured roll rate)
+    i13(Measured angle)
+end
+subgraph step2 [Step 2 UPDATE]
+    i10 & i12 -->op20(Update the angle)
+    i11-->op21(Update uncertainty)
+    op21-->kg(Calculate Kalman gain)            
+end
+subgraph step3 [Step 3 PREDICT]
+    op20 & kg & i13 -->op30(Predict angle)
+    kg --> op31(Predict uncertainty)
+    op30-->i10
+    op31-->i11
+end
+```
+
+### Implementazione
+
+```rust
+const DELTA_T: f32 = 0.004;
+
+const SD_R_RATE: f32 = 0.06; // Standard Deviation of the rotation rate r (4°)
+const SD_ACCEL: f32 = 0.05; // Standard Deviation of the accelerometer (3°)
+
+fn main() {
+    ...
+    // Inizializzazioni driver
+    ...
+
+    let (mut predicted_angle, mut predicted_uncertainty) = (0., 0.);
+
+    loop {
+        let (rate_roll, _, _) = gyro_controls.get_gyro();
+        let (roll_angle, _) = gyro_controls.get_orientation();
+
+        (predicted_angle, predicted_uncertainty) = kalman_1d(
+            predicted_angle,
+            predicted_uncertainty,
+            rate_roll,
+            roll_angle,
+        );
+        println!("{}", predicted_angle.to_degrees());
+
+        Delay::delay_ms(4);
+    }
+}
+
+fn kalman_1d(mut state: f32, mut uncertainty: f32, input: f32, measurement: f32) -> (f32, f32) {
+    state = state + DELTA_T * input;
+    uncertainty = uncertainty + DELTA_T * DELTA_T * SD_R_RATE * SD_R_RATE;
+
+    let gain = uncertainty / (uncertainty + SD_ACCEL * SD_ACCEL);
+
+    state = state + gain * (measurement - state);
+    uncertainty = (1. - gain) * uncertainty;
+
+    (state, uncertainty)
+}
+```
+
+### Confronto
+
+![Kalman vs accelerometro](./imgs/accel_vs_kalman.png)
+
+Legenda:
+
+- In blu l'angolo misurato dall'accelerometro
+- In rosso l'angolo stimato con il filtro di Kalman
+
+In questo esperimento, ho inizialmente effettuato una rotazione della breadboard lungo l'asse $x$, seguita dall'introduzione di rumore. Come evidenziato dal grafico in rosso, si può notare che l'angolo stimato mediante l'uso del filtro di Kalman rimane immune alle interferenze causate dalle vibrazioni.
+
+![Giroscopio, Accelerometro, Kalman da fermi](./imgs/kalman_accel_gyro.png)
+
+Legenda:
+
+- In blu l'angolo misurato dall'accelerometro
+- In rosso l'angolo stimato con il filtro di Kalman (traslato verso l'alto per renderlo più visibile)
+- In giallo l'angolo misurato dal giroscopio
+
+In questo secondo esperimento, ho mantenuto la breadboard in posizione statica per alcuni minuti. Dall'andamento del grafico, è evidente l'accumulo significativo di errore nel metodo di integrazione, nonché l'interferenza dovuta alle vibrazioni nel metodo basato sull'accelerometro. D'altra parte, grazie all'utilizzo del filtro di Kalman, è possibile osservare come entrambi questi svantaggi vengano mitigati ed eliminati.
