@@ -29,6 +29,8 @@ fn main() {
 
     let (mut predicted_angle, mut predicted_uncertainty) = (0., 0.);
 
+    let mut integrated_angle = 0.;
+
     loop {
         let (rate_roll, _, _) = gyro_controls.get_gyro();
         let (roll_angle, _) = gyro_controls.get_orientation();
@@ -40,7 +42,14 @@ fn main() {
             roll_angle,
         );
 
-        println!("{}", predicted_angle.to_degrees());
+        integrated_angle = integrated_angle + rate_roll * DELTA_T;
+
+        println!(
+            "{},{},{}",
+            predicted_angle.to_degrees() + 0.5, // offset to make it visible
+            roll_angle.to_degrees(),
+            integrated_angle.to_degrees()
+        );
 
         Delay::delay_ms(4);
     }
