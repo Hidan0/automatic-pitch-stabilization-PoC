@@ -3,8 +3,12 @@ use esp_idf_hal::gpio::PinDriver;
 use esp_idf_hal::i2c::{I2cConfig, I2cDriver};
 use esp_idf_hal::prelude::*;
 use esp_idf_sys as _;
-use gyro_controls::gyro_controls::GyroControls;
-use log::*;
+
+use self::orientation::Orientation;
+
+mod error;
+mod orientation;
+mod prelude;
 
 fn main() {
     esp_idf_sys::link_patches();
@@ -21,21 +25,14 @@ fn main() {
     let config = I2cConfig::new().baudrate(400000.Hz());
     let i2c = I2cDriver::new(peripherals.i2c0, sda, scl, &config).unwrap();
 
-    let mut gyro_controls = GyroControls::init(i2c, &mut cal_led);
-
-    let mut last_roll_rate: f32 = 0.;
-    let mut roll_angle: f32 = 0.;
-
-    const DELTA_TIME: f32 = 0.004;
+    let mut orientation = Orientation::init(i2c, &mut cal_led).unwrap();
 
     loop {
-        let (roll_rate, _, _) = gyro_controls.get_gyro();
+        orientation.update_orientation().unwrap();
 
-        roll_angle += 0.5 * (roll_rate + last_roll_rate) * DELTA_TIME;
-        last_roll_rate = roll_rate;
+        let angle = orientation.get_orientation();
+        println!("{},{}", angle.x, angle.y);
 
-        info!("Roll angle: {}", roll_angle.to_degrees());
-
-        Delay::delay_ms(4)
+        Delay::delay_ms(4);
     }
 }
