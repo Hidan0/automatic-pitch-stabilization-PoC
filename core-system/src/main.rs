@@ -1,4 +1,5 @@
 use self::orientation::Orientation;
+use self::servo::ServoSG90;
 use esp_idf_hal::delay::Delay;
 use esp_idf_hal::gpio::PinDriver;
 use esp_idf_hal::i2c::{I2cConfig, I2cDriver};
@@ -36,6 +37,18 @@ fn main() {
         Err(_) => warn!("Failed to set calibration LED to high"),
     }
 
+    let mut elevator = match ServoSG90::new(
+        peripherals.ledc.channel0,
+        peripherals.ledc.timer0,
+        peripherals.pins.gpio7,
+    ) {
+        Ok(servo) => servo,
+        Err(err) => {
+            error!("{}", err);
+            panic!();
+        }
+    };
+
     let scl = peripherals.pins.gpio5;
     let sda = peripherals.pins.gpio4;
 
@@ -56,14 +69,32 @@ fn main() {
         }
     };
 
+    const K: f32 = 1.0;
+    const DESIRED_ANGLE: f32 = 0.;
+
     loop {
         match orientation.update_orientation() {
             Ok(_) => {}
             Err(err) => error!("{}", err),
         };
 
-        let angle = orientation.get_orientation();
-        println!("{},{}", angle.x, angle.y);
+        let x_angle = orientation.get_orientation().x;
+        let error = DESIRED_ANGLE - x_angle;
+
+        let mut p_term = (K * error).to_degrees() + 90.;
+
+        if p_term > 180. {
+            p_term = 18.;
+        } else if p_term < 0. {
+            p_term = 0.;
+        }
+
+        println!("{p_term}");
+
+        match elevator.write_angle(p_term as u32) {
+            Ok(_) => {}
+            Err(err) => error!("{}", err),
+        };
 
         Delay::delay_ms(4);
     }
