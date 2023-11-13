@@ -1,6 +1,6 @@
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("Generic {0}")]
+    #[error("Generic: {0}")]
     Generic(String),
 
     #[error("Can not initialize MPU6050: {0}")]

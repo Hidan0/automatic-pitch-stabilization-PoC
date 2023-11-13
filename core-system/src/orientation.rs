@@ -79,7 +79,10 @@ impl Orientation {
         let end_time = SystemTime::now();
         info!(
             "Finished gyroscope calibration, {}ms",
-            end_time.duration_since(start_time).unwrap().as_millis()
+            end_time
+                .duration_since(start_time)
+                .unwrap_or_default()
+                .as_millis()
         );
 
         info_led
