@@ -9,6 +9,7 @@ use log::{error, warn};
 mod error;
 mod orientation;
 mod prelude;
+mod servo;
 
 fn main() {
     esp_idf_sys::link_patches();

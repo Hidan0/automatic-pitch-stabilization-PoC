@@ -13,4 +13,10 @@ pub enum Error {
     GyroRead,
     #[error("Can not read Accelerometer")]
     AccelRead,
+
+    #[error("Initialization driver: {0}")]
+    InitDriver(String),
+
+    #[error("Can not set duty cycle: {0}")]
+    DutyWrite(String),
 }
