@@ -6,11 +6,11 @@ use esp_idf_svc::hal::{
     units::Hertz,
 };
 
-pub const MAX_DUTY_US: f32 = 2500.;
-pub const MIN_DUTY_US: f32 = 500.;
-pub const MAX_ANGLE: f32 = 180.;
-pub const FREQ: f32 = 20_000.;
-pub const RESOLUTION: Resolution = Resolution::Bits11;
+const MAX_DUTY_US: f32 = 2500.;
+const MIN_DUTY_US: f32 = 500.;
+const MAX_ANGLE: f32 = 180.;
+const FREQ: f32 = 20_000.;
+const RESOLUTION: Resolution = Resolution::Bits11;
 
 pub struct ServoSG90<'a> {
     driver: LedcDriver<'a>,
@@ -33,5 +33,21 @@ impl<'a> ServoSG90<'a> {
         let max_duty = driver.get_max_duty() - 1;
 
         Ok(Self { driver, max_duty })
+    }
+
+    pub fn write_angle(&mut self, angle: u32) -> Result<()> {
+        let angle_us = ((angle as f32 / MAX_ANGLE) * (MAX_DUTY_US - MIN_DUTY_US)) + MIN_DUTY_US;
+
+        let duty: u32 = (angle_us * self.max_duty as f32 / FREQ) as u32;
+        self.driver.set_duty(duty).unwrap();
+
+        Ok(())
+    }
+
+    pub fn read_angle(&mut self) -> u32 {
+        let duty = self.driver.get_duty();
+        let angle_us = (duty as f32 * FREQ) / self.max_duty as f32;
+
+        ((angle_us - MIN_DUTY_US) / (MAX_DUTY_US - MIN_DUTY_US) * MAX_ANGLE) as u32
     }
 }
