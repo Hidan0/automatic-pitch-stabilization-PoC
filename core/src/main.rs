@@ -24,7 +24,7 @@ fn main() -> Result<()> {
             servo.write_angle(i)?;
 
             log::info!("Writing angle {}", i);
-            log::info!("Reading angle {}\n", servo.read_angle());
+            log::info!("Reading angle {}\n", servo.read_exp_angle());
 
             FreeRtos::delay_ms(15)
         }
