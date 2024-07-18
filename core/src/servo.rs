@@ -1,4 +1,3 @@
-use crate::Result;
 use esp_idf_svc::hal::{
     gpio::OutputPin,
     ledc::{config::TimerConfig, LedcChannel, LedcDriver, LedcTimer, LedcTimerDriver, Resolution},
@@ -6,9 +5,16 @@ use esp_idf_svc::hal::{
     units::Hertz,
 };
 
-const MAX_DUTY_US: f32 = 2500.;
+use crate::Result;
+
+const MAX_DUTY_US: f32 = 2400.;
 const MIN_DUTY_US: f32 = 500.;
-const MAX_ANGLE: f32 = 180.;
+const MAX_MINUS_MIN_DUTY: f32 = MAX_DUTY_US - MIN_DUTY_US;
+
+const MAX_ANGLE: f32 = 90.;
+const MIN_ANGLE: f32 = -90.;
+const MAX_MINUS_MIN_ANGLE: f32 = MAX_ANGLE - MIN_ANGLE;
+
 const FREQ: f32 = 20_000.;
 const RESOLUTION: Resolution = Resolution::Bits11;
 
@@ -35,19 +41,20 @@ impl<'a> ServoSG90<'a> {
         Ok(Self { driver, max_duty })
     }
 
-    pub fn write_angle(&mut self, angle: u32) -> Result<()> {
-        let angle_us = ((angle as f32 / MAX_ANGLE) * (MAX_DUTY_US - MIN_DUTY_US)) + MIN_DUTY_US;
+    pub fn write_angle(&mut self, angle: i16) -> Result<()> {
+        let angle_us =
+            (MAX_MINUS_MIN_DUTY / MAX_MINUS_MIN_ANGLE * (angle as f32 - MIN_ANGLE)) + MIN_DUTY_US;
 
-        let duty: u32 = (angle_us * self.max_duty as f32 / FREQ) as u32;
+        let duty = (self.max_duty as f32 * angle_us / FREQ) as u32;
         self.driver.set_duty(duty).unwrap();
 
         Ok(())
     }
 
-    pub fn read_exp_angle(&mut self) -> u32 {
+    pub fn read_exp_angle(&mut self) -> i16 {
         let duty = self.driver.get_duty();
         let angle_us = (duty as f32 * FREQ) / self.max_duty as f32;
 
-        ((angle_us - MIN_DUTY_US) / (MAX_DUTY_US - MIN_DUTY_US) * MAX_ANGLE) as u32
+        ((angle_us - MIN_DUTY_US) * (MAX_MINUS_MIN_ANGLE / MAX_MINUS_MIN_DUTY) + MIN_ANGLE) as i16
     }
 }
