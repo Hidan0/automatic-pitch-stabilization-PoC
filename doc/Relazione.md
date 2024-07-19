@@ -30,12 +30,12 @@ richiede due informazioni importanti: la frequenza della PWM e la risoluzione. L
 cui si ottiene che la frequenza è $\frac{1}{20ms}=50Hz$.
 
 La scelta dei bit di risoluzione richiede una considerazione aggiuntiva, dato che la
-frequenza del timer e i bit della risoluzione sono interdipendenti e legata alla
+frequenza del timer e i bit della risoluzione sono interdipendenti e legati alla
 frequenza del clock, che nel caso dell'ESP32-C3 è di $80MHz$. Più alta è la frequenza
 della PWM, più bassa è la risoluzione (e viceversa). Dato che non è possibile generare
 un'onda più veloce di quella consentita dal clock, si dovrebbe puntare a mantenere
 $f_{PWM}*2^{DUTY\_RES} < 80MHz$[^5]. La frequenza utilizzata è $50Hz$, quindi è
-possibile utilizzare al massimo 14 bit di risoluzione. Il minimo è stato determinato con
+possibile utilizzare al massimo 14 bit di risoluzione. Il minimo è stato determinato
 tramite un processo di _trial and error_, grazie ai messaggi di errore dell'API, ed è
 pari a 9 bit. Il valore finale scelto è 11 bit, poiché un valore maggiore di 11 non
 garantiva una precisione aggiuntiva nella conversione.
@@ -44,12 +44,91 @@ garantiva una precisione aggiuntiva nella conversione.
 ...
 let timer_config = TimerConfig {
     frequency: Hertz(50),
-    resolution: RESOLUTION,
+    resolution: Resolution::Bits11,
 };
 let timer_driver = LedcTimerDriver::new(timer, &timer_config).unwrap();
 let driver = LedcDriver::new(channel, timer_driver, gpio).unwrap();
 ...
 ```
+
+### Scrittura e lettura dell'angolo
+
+Nonostante la documentazione del motore servo SG90 indichi che il range di azione varia
+tra $1ms$ e $2ms$, le osservazioni pratiche hanno dimostrato che il range effettivo può
+estendersi da $500\mu s$ a $2500\mu s$. Utilizzando l'intervallo $1ms-2ms$, l'albero del
+servo non riesce a raggiungere gli angoli estremi di $-90°$ e $90°$, suggerendo che le
+specifiche teoriche non riflettano completamente il comportamento reale del dispositivo
+o che i servo utilizzati nel progetto non rispettino completamente le specifiche
+standard.
+
+Il primo passo è mappare l'angolo desiderato in gradi al corrispondente valore in
+microsecondi. La formula utilizzata per questa mappatura lineare è:
+
+$$
+\alpha_{\mu s} = \frac{2500-500}{90-(-90)}(\alpha-(-90)) + 500
+= \frac{2000}{180}(\alpha+90) + 500
+$$
+
+dove:
+
+- $500\mu s \le \alpha_{\mu s} \le 2500\mu s$ e rappresenta il valore dell'angolo in
+  microsecondi;
+- $-90° \le \alpha \le 90°$ e rappresenta il valore dell'angolo in gradi.
+
+Il passo successivo prevede la conversione del valore in microsecondi in un duty cycle
+digitale. Questo valore deve essere calcolato considerando che il periodo del segnale
+di controllo è di $20ms$ e che la risoluzione è di 11 bit. La formula utilizzate per
+il duty cycle è:
+
+$$
+duty = \frac{2^{11}-1}{pwm\_period}\alpha_{us}
+$$
+
+Tramite queste due equazioni, è possibile scrivere la funzione che, dato un angolo
+compreso tra $-90°$ e $90°$, muova l'albero del servo motore approssimativamente nella
+posizione corrispondente.
+
+```rust
+pub fn write_angle(&mut self, angle: i16) -> Result<()> {
+    let angle_us =
+        (MAX_MINUS_MIN_DUTY / MAX_MINUS_MIN_ANGLE * (angle as f32 - MIN_ANGLE)) + MIN_DUTY_US;
+
+    let duty = (self.max_duty as f32 * angle_us / FREQ) as u32;
+    self.driver.set_duty(duty).unwrap();
+
+    Ok(())
+}
+```
+
+Per implementare la funzione che "legge" l'angolo, è necessario derivare le funzioni
+inverse delle mappature precedenti. Questo processo consente di riconvertire il valore
+digitale del duty cycle e del segnale in microsecondi nell'angolo corrispondente in
+gradi. Le formule inverse sono:
+
+- $$
+  \alpha_{us} = \frac{duty * f_{period}}{2^{11} - 1}
+  $$
+
+- $$
+  \alpha = (\alpha_{\mu s} - 500)\frac{90-(-90)}{2500-500}+(-90) =
+  (\alpha_{\mu s} - 500)\frac{180}{2000} - 90
+  $$
+
+```rust
+pub fn read_exp_angle(&mut self) -> i16 {
+    let duty = self.driver.get_duty();
+    let angle_us = (duty as f32 * FREQ) / self.max_duty as f32;
+
+    ((angle_us - MIN_DUTY_US) * (MAX_MINUS_MIN_ANGLE / MAX_MINUS_MIN_DUTY) + MIN_ANGLE) as i16
+}
+```
+
+È importante sottolineare che il valore letto dell'angolo non è effettivamente frutto
+della lettura di un sensore, ma una conversione del valore che assume il duty cycle nel
+momento della lettura.
+
+Durante il processo di conversione, è stato osservato un errore medio di $0.5°$. Questo
+errore è stato determinato attraverso un test.
 
 ## Riferimenti
 
