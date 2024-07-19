@@ -128,7 +128,7 @@ della lettura di un sensore, ma una conversione del valore che assume il duty cy
 momento della lettura.
 
 Durante il processo di conversione, è stato osservato un errore medio di $0.5°$. Questo
-errore è stato determinato attraverso un test.
+errore è stato determinato attraverso un test[^6].
 
 ## Riferimenti
 
@@ -137,3 +137,4 @@ errore è stato determinato attraverso un test.
 [^3]: [LEDC features](https://www.espressif.com/sites/default/files/documentation/esp32-c3_technical_reference_manual_en.pdf#ledpwm)
 [^4]: [LEDC High and Low Speed Mode](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/ledc.html#ledc-high-and-low-speed-mode)
 [^5]: [ESP32 Basics: Generating a PWM Signal on the ESP32](https://lastminuteengineers.com/esp32-pwm-tutorial/)
+[^6]: Test demo reperibile al tag `servo_error_test`
