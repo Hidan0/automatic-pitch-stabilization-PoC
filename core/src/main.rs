@@ -1,3 +1,4 @@
+use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::peripherals::Peripherals;
 use servo::ServoSG90;
 
@@ -25,11 +26,13 @@ fn main() -> Result<()> {
         for i in -90..=90 {
             servo.write_angle(i)?;
             tot += i - servo.read_exp_angle();
+            FreeRtos::delay_ms(5);
         }
 
         for i in (-90..=90).rev() {
             servo.write_angle(i)?;
             tot += i - servo.read_exp_angle();
+            FreeRtos::delay_ms(5);
         }
     }
 
