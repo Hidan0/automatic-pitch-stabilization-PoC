@@ -30,6 +30,8 @@ embassy = ["esp-idf-svc/embassy-sync", "esp-idf-svc/critical-section", "esp-idf-
 [dependencies]
 log = { version = "0.4", default-features = false }
 esp-idf-svc = { version = "0.49", default-features = false }
+mpu6050 = { git = "https://github.com/juliangaal/mpu6050", rev = "acd71209d6b3a1316868a3f6711b0f13375adaff" }
+embedded-hal = { version = "1.0.0", default-features = false }
 
 [build-dependencies]
 embuild = "0.32.0"

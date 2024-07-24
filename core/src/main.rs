@@ -1,10 +1,12 @@
-use esp_idf_svc::hal::delay::FreeRtos;
+use esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver};
 use esp_idf_svc::hal::peripherals::Peripherals;
-use servo::ServoSG90;
+use esp_idf_svc::hal::units::Hertz;
+use orientation_controller::Controller;
 
 type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
 
+mod orientation_controller;
 mod servo;
 
 fn main() -> Result<()> {
@@ -13,33 +15,15 @@ fn main() -> Result<()> {
 
     let peripherals = Peripherals::take().unwrap();
 
-    let mut servo = ServoSG90::new(
-        peripherals.ledc.channel0,
-        peripherals.ledc.timer0,
-        peripherals.pins.gpio6,
-    )?;
+    let scl = peripherals.pins.gpio5;
+    let sda = peripherals.pins.gpio4;
 
-    let trials = 10;
-    let mut tot = 0;
+    let i2c_config = I2cConfig::default().baudrate(Hertz(400000));
+    let i2c_driver = I2cDriver::new(peripherals.i2c0, sda, scl, &i2c_config).unwrap();
 
-    for _ in 0..trials {
-        for i in -90..=90 {
-            servo.write_angle(i)?;
-            tot += i - servo.read_exp_angle();
-            FreeRtos::delay_ms(5);
-        }
+    let mut controller = Controller::new(i2c_driver).unwrap();
 
-        for i in (-90..=90).rev() {
-            servo.write_angle(i)?;
-            tot += i - servo.read_exp_angle();
-            FreeRtos::delay_ms(5);
-        }
+    loop {
+        println!("{}", controller.get_roll().unwrap());
     }
-
-    println!(
-        "Average conversion error: {}",
-        tot as f32 / (trials * 360) as f32
-    );
-
-    Ok(())
 }
