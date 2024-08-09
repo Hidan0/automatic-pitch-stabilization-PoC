@@ -130,6 +130,67 @@ momento della lettura.
 Durante il processo di conversione, è stato osservato un errore medio di $0.5°$. Questo
 errore è stato determinato attraverso un test[^6].
 
+## Modulo per la gestione dell'orientamento
+
+Nel seguente capitolo verranno illustrate le scelte implementative per la realizzazione
+del modulo che gestisce l'orientamento del dispositivo utilizzando il sensore MPU6050.
+
+Il sensore MPU6050 è un modulo integrato che combina un accelerometro a tre assi e un
+giroscopio a tre assi, offrendo una soluzione completa per il rilevamento
+dell'accelerazione, della velocità, dell'orientamento, dello spostamento e altri
+parametri relativi al movimento di un sistema o di un oggetto.
+
+### Calibrazione del sensore
+
+Il sensore MPU6050 in condizioni ideali, dovrebbe restituire valori prossimi allo zero
+per il giroscopio quando il sensore è fermo; tuttavia, dall'osservazione dei dati grezzi
+è emerso uno scostamento significativo dai valori attesi, indicando la presenza di uno
+scostamento, o bias, nel sensore.
+
+Per correggere questo scostamento, è stata implementata una strategia di calaibrazione
+"naive", che sebbene semplice, è efficace per eliminare il bias rilevato. La tecnica si
+articola nei seguenti passaggi:
+
+1. Acquisizione di $n$ campioni: vengono effettuate una serie di misurazioni statiche,
+   acquisendo $n$ campioni consecutivi dei dati grezzi provenienti dal giroscopio.
+   Durante questa fase, il sensore è mantenuto in una posizione stabile e senza
+   movimento.
+2. Calcolo della media: i campioni acquisiti vengono utilizzati per calcolare la media
+   dei valori per ciascun asse del giroscopio. Questo passaggio permette di stimare il
+   valore medio del bias presente nel sensore.
+3. Sottrazione del bias: una volta calcolato il bias per ciascun asse, questo viene
+   sottratto dai dati misurati durante il normale funzionamento del sensore.
+
+#### Scelta dei parametri di calibrazione
+
+Per determinare il numero ottimale di campioni $n$ da utilizzare nella calibrazione,
+sono stati considerati tre valori distinti, scelti arbitrariamente: 500, 1000 e 2000.
+
+Dopo aver applicato la calibrazione per ciascuno dei valori di $n$[^7], i risultati sono
+stati raccolti, analizzati e confrontati[^8]. L'analisi grafica ha evidenziato come
+l'aumento del numero di campioni $n$ porti a una riduzione progressiva del bias residuo.
+In particolare è stato osservato che utilizzando 2000 campioni, i valori medi del bias
+risultano essere i più vicini allo zero, indicando una calibrazione più accurata e
+stabile rispetto alle altre due configurazioni.
+
+![Confronto grafico calibrazioni](./data/imgs/calibrations.png)
+
+### Considerazioni sull'intervallo di tempo tra le misurazioni
+
+Introdurre un intervallo di tempo tra le misurazioni durante la calibrazione del sensore
+potrebbe teoricamente migliorare le qualità dei dati raccolti. Per valutare l'efficacia
+di questa strategia è stato condotto un test pratico per determinare l'intervallo minimo
+di tempo necessario tra le misurazioni. I risultati hanno indicato che l'intervallo
+minimo di tempo necessario è di $1ms$. Tuttavia è emerso che, per come è implementato il
+codice internamente, anche un breve ritardo come questo può portare a un significativo
+aumento del tempo totale di calibrazione, rendendo l'intero processo troppo lungo e
+quindi impraticabile. (Per 500 misurazioni il tempo teorico di attesa dovrebbe essere di
+$0.5s$, il tempo osservato era di circa $5s$).
+
+Sebbene l'introduzione di un intervallo di tempo tra le misurazioni possa teoricamente
+migliorare la qualità dei dati di calibrazione, il test pratico ha dimostrato che il
+tempo di attesa non è compatibile con le esigenze di tempo e precisione del sistema.
+
 ## Riferimenti
 
 [^1]: [Servo motor SG90](http://www.ee.ic.ac.uk/pcheung/teaching/DE1_EE/stores/sg90_datasheet.pdf)
@@ -138,3 +199,5 @@ errore è stato determinato attraverso un test[^6].
 [^4]: [LEDC High and Low Speed Mode](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/ledc.html#ledc-high-and-low-speed-mode)
 [^5]: [ESP32 Basics: Generating a PWM Signal on the ESP32](https://lastminuteengineers.com/esp32-pwm-tutorial/)
 [^6]: Test demo reperibile al tag `servo_error_test`
+[^7]: Demo calibrazione reperibile al tag `calibration`
+[^8]: Analisi in `data/CalibrationAnalysis.ipynb`
