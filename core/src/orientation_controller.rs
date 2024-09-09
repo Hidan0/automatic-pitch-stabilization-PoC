@@ -70,6 +70,6 @@ impl<'a> Controller<'a> {
     pub fn get_roll(&mut self) -> Result<f32> {
         let gyro = self.mpu.get_gyro().unwrap();
 
-        Ok(gyro.x)
+        Ok(gyro.x - self.calibrations.r)
     }
 }
