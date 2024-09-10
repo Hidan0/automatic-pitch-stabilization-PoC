@@ -191,6 +191,64 @@ Sebbene l'introduzione di un intervallo di tempo tra le misurazioni possa teoric
 migliorare la qualità dei dati di calibrazione, il test pratico ha dimostrato che il
 tempo di attesa non è compatibile con le esigenze di tempo e precisione del sistema.
 
+### Stima dell'angolo attraverso il giroscopio
+
+È possibile ottenere una stima dell'angolo ($\theta_{r,y,p}$) integrando il tasso di
+rotazione ($\omega_{r,y,p}$) fornito dal giroscopio lungo l'asse di interesse:
+
+$$
+\theta_{r,y,p}(t) = \int_0^t \omega_{r,y,p}(t)dt
+$$
+
+Il giroscopio misura la velocità angolare, quindi l'angolo può essere calcolato
+integrando questa velocità nel tempo. Nella pratica, l'integrazione continua del segnale
+del giroscopio (`roll_rate`) è stata eseguita in modo discreto, secondo la formula:
+
+$$
+\theta_{t+1} =\theta_t + \omega_t \cdot \Delta t
+$$
+
+Per verificare il comportamento del sistema, è stata eseguita una demo in cui la scheda
+veniva mossa lungo l'asse di rollio (asse X) e successivamente mantenuta ferma. Nel
+contesto della demo il tasso di rotazione (`roll_rate`) è misurato in radianti al
+secondo, mentre il passo temporale $\Delta t$ è stato impostato a $0.004s$. Questo
+valore deriva dal delay di $4ms$ presente nel loop di campionamento della demo, poiché
+la frequenza di aggiornamento scelta per il sistema è di $250Hz$.
+
+```rust
+const UPDATE_TIME_MS: u8 = 4;
+const DELTA_TIME: f32 = UPDATE_TIME_MS as f32 / 1000.;
+
+fn main() -> Result<()> {
+    // Set up
+
+    let mut roll_angle: f32 = 0.;
+
+    loop {
+        let roll_rate = controller.get_roll()?;
+        roll_angle += roll_rate * DELTA_TIME;
+
+        println!("{}", roll_angle);
+
+        FreeRtos::delay_ms(UPDATE_TIME_MS.into());
+    }
+}
+```
+
+I dati raccolti mostrano chiaramente che, nonostante l'angolo stimato segua inizialmente
+il movimento reale, con il passare del tempo si verifica un accumulo di errore. Questo
+fenomeno è dovuto al fatto che ciascuna misura del tasso di rotazione presenta un certo
+margine di errore, il quale viene sommato all'angolo stimato a ogni iterazione durante
+il processo di integrazione. Di conseguenza, si genera un errore cumulativo che aumenta
+progressivamente con il passare del tempo.
+
+![Stima dell'angolo attraverso il giroscopio](./data/imgs/estimated_roll_angle_gyro.png)
+![Focus sull'errore dovuto alla stima](./data/imgs/focused_estimated_roll_angle_gyro.png)
+
+In considerazione di queste limitazioni, è stato valutato l'utilizzo dell'accelerometro
+come alternativa per stimare l'orientamento assoluto, offrendo una potenziale soluzione
+per ridurre l'accumulo di errore nel tempo della integrazione del giroscopio.
+
 ## Riferimenti
 
 [^1]: [Servo motor SG90](http://www.ee.ic.ac.uk/pcheung/teaching/DE1_EE/stores/sg90_datasheet.pdf)
@@ -200,4 +258,4 @@ tempo di attesa non è compatibile con le esigenze di tempo e precisione del sis
 [^5]: [ESP32 Basics: Generating a PWM Signal on the ESP32](https://lastminuteengineers.com/esp32-pwm-tutorial/)
 [^6]: Test demo reperibile al tag `servo_error_test`
 [^7]: Demo calibrazione reperibile al tag `calibration`
-[^8]: Analisi in `data/CalibrationAnalysis.ipynb`
+[^8]: Analisi in `data/Analysis.ipynb`
