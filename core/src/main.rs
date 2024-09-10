@@ -13,7 +13,7 @@ mod orientation_controller;
 mod servo;
 
 const UPDATE_TIME_MS: u8 = 4;
-const DELTA_TIME: f32 = UPDATE_TIME_MS as f32 / 1000.;
+// const DELTA_TIME: f32 = UPDATE_TIME_MS as f32 / 1000.;
 
 fn main() -> Result<()> {
     esp_idf_svc::sys::link_patches();
@@ -29,13 +29,17 @@ fn main() -> Result<()> {
 
     let mut controller = Controller::new(i2c_driver).unwrap();
 
-    let mut roll_angle: f32 = 0.;
+    let mut cal = 0.;
+    const NUM_CAL: usize = 2000;
+
+    for _ in 0..NUM_CAL {
+        cal += controller.get_accel_roll()?;
+    }
+    cal /= NUM_CAL as f32;
 
     loop {
-        let roll_rate = controller.get_roll()?;
-        roll_angle += roll_rate * DELTA_TIME;
-
-        println!("{}", roll_angle);
+        let acc = controller.get_accel_roll()?;
+        println!("{},{}", acc, acc - cal);
 
         FreeRtos::delay_ms(UPDATE_TIME_MS.into());
     }

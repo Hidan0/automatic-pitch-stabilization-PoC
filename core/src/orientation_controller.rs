@@ -72,4 +72,8 @@ impl<'a> Controller<'a> {
 
         Ok(gyro.x - self.calibrations.r)
     }
+
+    pub fn get_accel_roll(&mut self) -> Result<f32> {
+        Ok(self.mpu.get_acc_angles().unwrap().x)
+    }
 }
