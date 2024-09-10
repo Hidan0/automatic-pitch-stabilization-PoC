@@ -140,7 +140,7 @@ giroscopio a tre assi, offrendo una soluzione completa per il rilevamento
 dell'accelerazione, della velocità, dell'orientamento, dello spostamento e altri
 parametri relativi al movimento di un sistema o di un oggetto.
 
-### Calibrazione del sensore
+### Calibrazione del giroscopio
 
 Il sensore MPU6050 in condizioni ideali, dovrebbe restituire valori prossimi allo zero
 per il giroscopio quando il sensore è fermo; tuttavia, dall'osservazione dei dati grezzi
@@ -161,7 +161,7 @@ articola nei seguenti passaggi:
 3. Sottrazione del bias: una volta calcolato il bias per ciascun asse, questo viene
    sottratto dai dati misurati durante il normale funzionamento del sensore.
 
-#### Scelta dei parametri di calibrazione
+#### Scelta dei parametri di calibrazione del giroscopio
 
 Per determinare il numero ottimale di campioni $n$ da utilizzare nella calibrazione,
 sono stati considerati tre valori distinti, scelti arbitrariamente: 500, 1000 e 2000.
@@ -175,7 +175,7 @@ stabile rispetto alle altre due configurazioni.
 
 ![Confronto grafico calibrazioni](./data/imgs/calibrations.png)
 
-### Considerazioni sull'intervallo di tempo tra le misurazioni
+#### Considerazioni sull'intervallo di tempo tra le misurazioni
 
 Introdurre un intervallo di tempo tra le misurazioni durante la calibrazione del sensore
 potrebbe teoricamente migliorare le qualità dei dati raccolti. Per valutare l'efficacia
