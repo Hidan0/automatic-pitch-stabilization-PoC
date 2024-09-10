@@ -27,20 +27,7 @@ fn main() -> Result<()> {
     let i2c_config = I2cConfig::default().baudrate(Hertz(400000));
     let i2c_driver = I2cDriver::new(peripherals.i2c0, sda, scl, &i2c_config).unwrap();
 
-    let mut controller = Controller::new(i2c_driver).unwrap();
+    let mut _controller = Controller::new(i2c_driver).unwrap();
 
-    let mut cal = 0.;
-    const NUM_CAL: usize = 2000;
-
-    for _ in 0..NUM_CAL {
-        cal += controller.get_accel_roll()?;
-    }
-    cal /= NUM_CAL as f32;
-
-    loop {
-        let acc = controller.get_accel_roll()?;
-        println!("{},{}", acc, acc - cal);
-
-        FreeRtos::delay_ms(UPDATE_TIME_MS.into());
-    }
+    Ok(())
 }

@@ -14,10 +14,15 @@ const CALIBRATIONS: u16 = 2000;
 
 pub struct Controller<'a> {
     mpu: MpuDriver<'a>,
-    pub calibrations: GyroCalibration,
+    pub gyro_calibrations: GyroCalibration,
+    pub accel_calibrations: AccelCalibration,
 }
 
 pub struct GyroCalibration {
+    r: f32,
+}
+
+pub struct AccelCalibration {
     r: f32,
 }
 
@@ -56,24 +61,51 @@ impl<'a> Controller<'a> {
         }
     }
 
+    fn calibrate_accel(mpu: &mut MpuDriver<'a>) -> AccelCalibration {
+        let mut r = 0_f32;
+
+        let start_time = SystemTime::now();
+        for _ in 0..CALIBRATIONS {
+            r += mpu.get_acc_angles().unwrap().x;
+        }
+        let current = SystemTime::now();
+        log::info!(
+            "For {} measurements took {}ms",
+            CALIBRATIONS,
+            current
+                .duration_since(start_time)
+                .unwrap_or_default()
+                .as_millis()
+        );
+
+        AccelCalibration {
+            r: r / CALIBRATIONS as f32,
+        }
+    }
+
     pub fn new(i2c: I2cDriver<'a>) -> Result<Controller<'a>> {
         let delay = &mut FreeRtos;
         log::info!("Starting Mpu set up...");
         let mut mpu = Self::setup_mpu(delay, i2c)?;
         log::info!("Finished Mpu set up.");
 
-        let calibrations = Self::calibrate_gyro(&mut mpu);
+        let gyro_calibrations = Self::calibrate_gyro(&mut mpu);
+        let accel_calibrations = Self::calibrate_accel(&mut mpu);
 
-        Ok(Self { mpu, calibrations })
+        Ok(Self {
+            mpu,
+            gyro_calibrations,
+            accel_calibrations,
+        })
     }
 
     pub fn get_roll(&mut self) -> Result<f32> {
         let gyro = self.mpu.get_gyro().unwrap();
 
-        Ok(gyro.x - self.calibrations.r)
+        Ok(gyro.x - self.gyro_calibrations.r)
     }
 
     pub fn get_accel_roll(&mut self) -> Result<f32> {
-        Ok(self.mpu.get_acc_angles().unwrap().x)
+        Ok(self.mpu.get_acc_angles().unwrap().x - self.accel_calibrations.r)
     }
 }
