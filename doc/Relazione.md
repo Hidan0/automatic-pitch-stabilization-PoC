@@ -249,6 +249,30 @@ In considerazione di queste limitazioni, è stato valutato l'utilizzo dell'accel
 come alternativa per stimare l'orientamento assoluto, offrendo una potenziale soluzione
 per ridurre l'accumulo di errore nel tempo della integrazione del giroscopio.
 
+### Stima dell'angolo attraverso l'accelerometro
+
+L'accelerometro è un sensore in grado di misurare l'accelerazione lineare di un oggetto.
+Questa informazione può essere sfruttata per stimare l'orientamento assoluto lungo due
+assi, rollio (asse X) e beccheggio (asse Y), misurando la componente della gravità lungo
+tali assi. Per determinare l'orientamento lungo l'asse di imbardata (asse Z) sarebbe
+invece necessario un magnetometro, poiché l'accelerometro da solo non è sufficiente.
+
+L'implementazione della stima dell'orientamento tramite accelerometro è semplice e
+immediata grazie all'uso della libreria _mpu6050_, che fornisce un metodo predefinito
+per calcolare rollio e beccheggio (`get_acc_angles`).
+
+Analogamente a quanto fatto per il [giroscopio](#calibrazione-del-giroscopio),
+l'accelerometro è stato calibrato utilizzando una serie di 2000 misurazioni. Come
+mostrato nel grafico, le misurazioni calibrate risultano più accurate, con valori che
+si avvicinano molto di più allo zero rispetto a quelli ottenuti senza calibrazione[^9].
+
+![Confronto tra accelerometro calibrato e non](./data/imgs/accelerometer_calibrations.png)
+
+A differenza del giroscopio, l'accelerometro non soffre del problema dell'accumulo di
+errore nel tempo, poiché non richiede l'integrazione per calcolare l'orientamento.
+Tuttavia, presenta un'altra limitazione significativa: è estremamente sensibile ai
+disturbi esterni, come vibrazioni e movimenti improvvisi.
+
 ## Riferimenti
 
 [^1]: [Servo motor SG90](http://www.ee.ic.ac.uk/pcheung/teaching/DE1_EE/stores/sg90_datasheet.pdf)
@@ -259,3 +283,4 @@ per ridurre l'accumulo di errore nel tempo della integrazione del giroscopio.
 [^6]: Test demo reperibile al tag `servo_error_test`
 [^7]: Demo calibrazione reperibile al tag `calibration`
 [^8]: Analisi in `data/Analysis.ipynb`
+[^9]: Demo calibrazione e stima dell'accelerometro al tag `accel_estimation`
