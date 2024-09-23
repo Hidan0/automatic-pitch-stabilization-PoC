@@ -273,6 +273,64 @@ errore nel tempo, poiché non richiede l'integrazione per calcolare l'orientamen
 Tuttavia, presenta un'altra limitazione significativa: è estremamente sensibile ai
 disturbi esterni, come vibrazioni e movimenti improvvisi.
 
+### Stima dell'angolo con il filtro complementare
+
+I metodi di stima dell'angolo analizzati fino ad ora, basati sull'uso del giroscopio e
+dell'accelerometro, hanno ciascuno punti di forza e debolezze. L'obiettivo è combinare
+entrambe le misurazioni attraverso un algoritmo di fusione per bilanciare i vantaggi dei
+due sensori e correggere i rispettivi svantaggi.
+
+Il metodo più semplice e diretto per fondere i dati di giroscopio e accelerometro è il
+**filtro complementare**. Questo filtro sfrutta il principio secondo cui i due sensori
+forniscono informazioni complementari: il giroscopio è affidabile a breve termine,
+mentre l'accelerometro a lungo termine. Il funzionamento del filtro è basato sulla
+combinazione ponderata delle due misurazioni, dove si utilizza il giroscopio per stimare
+l'angolo e l'accelerometro per correggerne la deriva.
+
+L'implementazione del filtro complementare si basa sulla seguente formula:
+
+$$
+\theta_{t+1} = K \cdot \alpha_t + (1-K) \cdot (\theta_t + \omega_t \cdot \Delta t)
+$$
+
+Dove:
+
+- $\theta_t$ è l'angolo stimato al tempo $t$;
+- $\alpha_t$ è l'angolo stimato attraverso l'accelerometro ;
+- $\omega_t$ è il tasso di rotazione rilevato dal giroscopio al tempo $t$;
+- $0 \le K \le 1$ è il coefficiente che determina il peso da assegnare alle due misure;
+- $\Delta t$ è il passo temporale (impostato anche in questo caso a $4ms$).
+
+La scelta del valore di $K$ è cruciale: un valore troppo elevato rischia di sovra pesare
+il contributo dell'accelerometro, amplificando i disturbi, mentre un valore troppo basso
+rallenta la correzione della deriva del giroscopio.
+
+Per determinare il valore più adatto, è stato condotto un esperimento[^10] testando i
+seguenti valori di $K$: $5, 2, 0.5, 0.05, 0.02$. È stato osservato che con $K=5$, il
+sistema genera valori di `+/-inf`, indicando dei overflow. Con $K=2$, la misurazione è
+risultata estremamente disturbata e instabile come si può osservare dal grafico
+sottostante.
+
+![Confronto tra giroscopio e filtro complementare con K=2](./data/imgs/compl2.png)
+
+I risultati migliori si sono ottenuti con valori di $K$ inferiori a 1, in particolare
+con $K=0.05$ e $K=0.02$, dove l'angolo stimato risultava più stabile e l'effetto dei
+disturbi ridotto al minimo. Come si osserva dal secondo grafico sottostante, la
+differenza tra i risultati ottenuti con $K=0.05$ e $K=0.02$ sembrerebbe minima.
+Pertanto, si è deciso di adottare un valore intermedio, ossia la media tra i due
+coefficienti, $K=0.035$, ritenendo che questo bilanci in modo ottimale la correzione
+fornita dall'accelerometro e la stabilità delle misurazioni.
+
+![Confronto tra giroscopio e i K<1](./data/imgs/compl05to002.png)
+![Confronto tra giroscopio e K=0.05 e K=0.02](./data/imgs/compl002and005.png)
+
+Esiste anche il **filtro di Kalman**, che offre una stima molto più precisa rispetto al
+filtro complementare grazie alla sua capacità di gestire in modo ottimale le incertezze
+nelle misurazioni e nei modelli dinamici. Tuttavia, a causa della sua complessità di
+implementazione e considerando il target del progetto, si è deciso di utilizzare il
+filtro complementare, che rappresenta una soluzione più semplice e adeguata per le
+esigenze attuali.
+
 ## Riferimenti
 
 [^1]: [Servo motor SG90](http://www.ee.ic.ac.uk/pcheung/teaching/DE1_EE/stores/sg90_datasheet.pdf)
@@ -284,3 +342,4 @@ disturbi esterni, come vibrazioni e movimenti improvvisi.
 [^7]: Demo calibrazione reperibile al tag `calibration`
 [^8]: Analisi in `data/Analysis.ipynb`
 [^9]: Demo calibrazione e stima dell'accelerometro al tag `accel_estimation`
+[^10]: Demo filtro complementare al tag `compl_filter`
