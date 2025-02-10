@@ -11,11 +11,13 @@ use crate::Result;
 type MpuDriver<'a> = Mpu6050<I2cDriver<'a>>;
 
 const CALIBRATIONS: u16 = 2000;
+const K: f32 = 0.035;
 
 pub struct Controller<'a> {
     mpu: MpuDriver<'a>,
     pub gyro_calibrations: GyroCalibration,
     pub accel_calibrations: AccelCalibration,
+    angle: f32,
 }
 
 pub struct GyroCalibration {
@@ -96,16 +98,30 @@ impl<'a> Controller<'a> {
             mpu,
             gyro_calibrations,
             accel_calibrations,
+            angle: 0.,
         })
     }
 
-    pub fn get_roll(&mut self) -> Result<f32> {
+    fn get_roll(&mut self) -> Result<f32> {
         let gyro = self.mpu.get_gyro().unwrap();
 
         Ok(gyro.x - self.gyro_calibrations.r)
     }
 
-    pub fn get_accel_roll(&mut self) -> Result<f32> {
+    fn get_accel_roll(&mut self) -> Result<f32> {
         Ok(self.mpu.get_acc_angles().unwrap().x - self.accel_calibrations.r)
+    }
+
+    pub fn update(&mut self, dt: &f32) -> Result<()> {
+        let rate = self.get_roll()?;
+        let abs = self.get_accel_roll()?;
+
+        self.angle = abs * K + (1. - K) * (self.angle + rate * dt);
+
+        Ok(())
+    }
+
+    pub fn get_angle(&mut self) -> Result<f32> {
+        Ok(self.angle)
     }
 }
