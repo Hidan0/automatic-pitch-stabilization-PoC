@@ -4,7 +4,7 @@
 
 Nel seguente capitolo verranno illustrate le scelte implementative per la realizzazione del modulo che implementa un semplice driver per il motore servo SG90.
 
-Il motore servo SG90[^1] è un motore standard leggero e di piccole dimensioni. Il servo può ruotare di circa 180 gradi (90 gradi per ogni direzione) e utilizza segnali di modulazione di larghezza di impulso (PWM) per determinare la posizione dell'albero. Un impulso di $1.5ms$ posiziona l'albero al centro, un impulso di $1ms$ lo posiziona all'estrema sinistra (-90 gradi), mentre un impulso di $2ms$ lo posiziona all'estrema destra (90 gradi).
+Il motore servo SG90[^1] è un motore standard leggero e di piccole dimensioni. Il servo motore può ruotare di circa 180 gradi (90 gradi per ogni direzione) e utilizza segnali di modulazione di larghezza di impulso (PWM) per determinare la posizione dell'albero. Un impulso di $1.5ms$ posiziona l'albero al centro, un impulso di $1ms$ lo posiziona all'estrema sinistra (-90 gradi), mentre un impulso di $2ms$ lo posiziona all'estrema destra (90 gradi).
 
 ### Generare una PWM con l'ESP32-C3
 
@@ -29,7 +29,7 @@ let driver = LedcDriver::new(channel, timer_driver, gpio).unwrap();
 
 ### Scrittura e lettura dell'angolo
 
-Nonostante la documentazione del motore servo SG90 indichi che il range di azione varia tra $1ms$ e $2ms$, le osservazioni pratiche hanno dimostrato che il range effettivo può estendersi da $500\mu s$ a $2500\mu s$. Utilizzando l'intervallo $1ms-2ms$, l'albero del servo non riesce a raggiungere gli angoli estremi di $-90°$ e $90°$, suggerendo che le specifiche teoriche non riflettano completamente il comportamento reale del dispositivo o che i servo utilizzati nel progetto non rispettino completamente le specifiche standard.
+Nonostante la documentazione del motore servo SG90 indichi che il range di azione varia tra $1ms$ e $2ms$, le osservazioni pratiche hanno dimostrato che il range effettivo può estendersi da $500\mu s$ a $2500\mu s$. Utilizzando l'intervallo $1ms-2ms$, l'albero del servo motore non riesce a raggiungere gli angoli estremi di $-90°$ e $90°$, suggerendo che le specifiche teoriche non riflettano completamente il comportamento reale del dispositivo o che i servo utilizzati nel progetto non rispettino completamente le specifiche standard.
 
 Il primo passo è mappare l'angolo desiderato in gradi al corrispondente valore in
 microsecondi. La formula utilizzata per questa mappatura lineare è:
@@ -45,7 +45,7 @@ dove:
   microsecondi;
 - $-90° \le \alpha \le 90°$ e rappresenta il valore dell'angolo in gradi.
 
-Il passo successivo prevede la conversione del valore in microsecondi in un duty cycle digitale. Questo valore deve essere calcolato considerando che il periodo del segnale di controllo è di $20ms$ e che la risoluzione è di 11 bit. La formula utilizzate per il duty cycle è:
+Il passo successivo prevede la conversione del valore in microsecondi in un duty cycle digitale. Questo valore deve essere calcolato considerando che il periodo del segnale di controllo è di $20ms$ e che la risoluzione è di 11 bit. La formula utilizzata per il duty cycle è:
 
 $$
 duty = \frac{2^{11}-1}{pwm\_period}\alpha_{us}
@@ -155,7 +155,7 @@ fn main() -> Result<()> {
 }
 ```
 
-I dati raccolti mostrano chiaramente che, nonostante l'angolo stimato segua inizialmente il movimento reale, con il passare del tempo si verifica un accumulo di errore. Questo fenomeno è dovuto al fatto che ciascuna misura del tasso di rotazione presenta un certo margine di errore, il quale viene sommato all'angolo stimato a ogni iterazione durante il processo di integrazione. Di conseguenza, si genera un errore cumulativo che aumentaprogressivamente con il passare del tempo.
+I dati raccolti mostrano chiaramente che, nonostante l'angolo stimato segua inizialmente il movimento reale, con il passare del tempo si verifica un accumulo di errore. Questo fenomeno è dovuto al fatto che ciascuna misura del tasso di rotazione presenta un certo margine di errore, il quale viene sommato all'angolo stimato a ogni iterazione durante il processo di integrazione. Di conseguenza, si genera un errore cumulativo che aumenta progressivamente con il passare del tempo.
 
 ![Stima dell'angolo attraverso il giroscopio](./data/imgs/estimated_roll_angle_gyro.png)
 ![Focus sull'errore dovuto alla stima](./data/imgs/focused_estimated_roll_angle_gyro.png)
@@ -205,7 +205,7 @@ I risultati migliori si sono ottenuti con valori di $K$ inferiori a 1, in partic
 ![Confronto tra giroscopio e i K<1](./data/imgs/compl05to002.png)
 ![Confronto tra giroscopio e K=0.05 e K=0.02](./data/imgs/compl002and005.png)
 
-Esiste anche il **filtro di Kalman**, che offre una stima molto più precisa rispetto al filtro complementare grazie alla sua capacità di gestire in modo ottimale le incertezze nelle misurazioni e nei modelli dinamici. Tuttavia, a causa della sua complessità di implementazione e considerando il target del progetto, si è deciso di utilizzare il filtro complementare, che rappresenta una soluzione più semplice e adeguata per le esigenze attuali.
+Un algoritmo che offre una stima molto più precisa rispetto al filtro complementare è il **filtro di Kalman**. Tuttavia, a causa della sua complessità di implementazione e considerando il target del progetto, si è deciso di utilizzare il filtro complementare, che rappresenta una soluzione più semplice e adeguata per le esigenze attuali.
 
 ## Riferimenti
 
