@@ -1,20 +1,72 @@
-# Relazione
+# PoC - Stabilizzazione automatica del beccheggio
 
-## Modulo 'servo'
+[toc]
 
-Nel seguente capitolo verranno illustrate le scelte implementative per la realizzazione del modulo che implementa un semplice driver per il motore servo SG90.
+## Descrizione
 
-Il motore servo SG90[^1] è un motore standard leggero e di piccole dimensioni. Il servo motore può ruotare di circa 180 gradi (90 gradi per ogni direzione) e utilizza segnali di modulazione di larghezza di impulso (PWM) per determinare la posizione dell'albero. Un impulso di $1.5ms$ posiziona l'albero al centro, un impulso di $1ms$ lo posiziona all'estrema sinistra (-90 gradi), mentre un impulso di $2ms$ lo posiziona all'estrema destra (90 gradi).
+Il progetto consiste nello sviluppo di un sistema in grado di rilevare l'assetto di un aereo, in particolare l'angolo di beccheggio, e di regolare di conseguenza l'inclinazione della superficie di controllo (elevatore), compensando eventuali deviazioni rispetto alla posizione desiderata. 
 
-### Generare una PWM con l'ESP32-C3
+### Architettura del sistema
 
-Per generare il segnale di larghezza di impulso con l'ESP32-C3 è stata utilizzata la periferica LEDC[^2] (_LED control_). Questa periferica è progettata principalmente per controllare l'intensità dei LED, ma può anche essere configurata per altri scopi, come ad esempio la generazione di una PWM.
+L'architettura si compone di due parti principali:
+1. **Componente elettronica e software**: include il microcontrollore ESP32-C3, il sensore MPU6050 per la misura dell'assetto e il servomotore SG90 per il controllo dell'elevatore. L'implementazione del software è scritta in Rust.
+1. **Modello fisico**: una struttura semplificata che simula l'aereo, costituito da una base in cartoncino su cui sono montati il sensore e il servomotore. Il tutto è fissato su una struttura ad H che consente il movimento attorno all'asse di beccheggio.
+
+TODO: circuito
+
+### Funzionamento del sistema
+
+Il funzionamento del sistema può essere diviso in due parti principali: _stima dell'assetto_ e _stabilizzazione automatica del beccheggio attraverso il controllo PID_. Nella fase di stima, inizialmente il sistema calibra l'MPU6050, per garantire misurazioni più accurate. Successivamente, la stabilizzazione automatica viene gestita attraverso un feedback loop chiuso, che elabora i dati dell'assetto e determina il segnale di correzione da inviare al servomotore. 
+
+````mermaid
+flowchart LR 
+	a(Calibrazione MPU6050) --> b(Acquisizione dati)
+	b --> c(Stima dell'angolo)
+	c --> d(Elaborazione e controllo PID)
+	d --> e(Attuazione della correzione)
+	e --> b
+````
+
+### Componentistica e librerie
+
+**Componenti elettronici**:
+- ESP32-C3
+- MPU6050
+- SG90
+- Breadboard da 830 contatti
+- Led verde e rosso
+- Cavi e jumper
+
+**Software**:
+
+- Ecosistema [esp-rs](https://github.com/esp-rs) per Rust
+- Libreria [mpu6050](https://crates.io/crates/mpu6050)
+
+**Componenti per il modello**:
+
+- Cartoncino
+- Nastro adesivo
+- Colla
+- Filo di metallo
+- Spiedi di bambù
+
+## Sviluppo e implementazione
+
+### Modulo per la gestione del servomotore SG90
+
+TODO: lasciare perdere l'introduzione su cos'è il sensore, inserire perché è stato sviluppato e quali erano le sfide
+
+Il motore servo SG90[^1] è un motore standard leggero e di piccole dimensioni. Il servomotore può ruotare di circa 180 gradi (90 gradi per ogni direzione) e utilizza segnali di modulazione di larghezza di impulso (PWM) per determinare la posizione dell'albero. Un impulso di $1.5ms$ posiziona l'albero al centro, un impulso di $1ms$ lo posiziona all'estrema sinistra (-90 gradi), mentre un impulso di $2ms$ lo posiziona all'estrema destra (90 gradi).
+
+#### Generare una PWM con l'ESP32-C3
+
+Per generare il segnale di larghezza di impulso con l'ESP32-C3 è stata utilizzata la periferica LEDC[^2] (_LED control_). Questa periferica è progettata principalmente per controllare l'intensità dei LED, ma può anche essere configurata per la generazione di una PWM.
 
 Il modulo LEDC consente di generare fino a 6 segnali PWM indipendenti utilizzando 4 timer, con una risoluzione massima di 14 bit[^3]. A differenza del modello superiore ESP32, l'ESP32-C3 supporta solamente l'output a bassa velocità (_low speed channel_), che viene gestito tramite software[^4].
 
 La creazione delle strutture dati necessarie per l'impostazione di un canale LEDC richiede due informazioni importanti: la frequenza della PWM e la risoluzione. La prima è facilmente determinabile, poiché il servo SG90 funziona con un periodo di $20ms$, da cui si ottiene che la frequenza è $\frac{1}{20ms}=50Hz$.
 
-La scelta dei bit di risoluzione richiede una considerazione aggiuntiva, dato che la frequenza del timer e i bit della risoluzione sono interdipendenti e legati alla frequenza del clock, che nel caso dell'ESP32-C3 è di $80MHz$. Più alta è la frequenza della PWM, più bassa è la risoluzione (e viceversa). Dato che non è possibile generare un'onda più veloce di quella consentita dal clock, si dovrebbe puntare a mantenere $f_{PWM}*2^{DUTY\_RES} < 80MHz$[^5]. La frequenza utilizzata è $50Hz$, quindi è possibile utilizzare al massimo 14 bit di risoluzione. Il minimo è stato determinato tramite un processo di _trial and error_, grazie ai messaggi di errore dell'API, ed è pari a 9 bit. Il valore finale scelto è 11 bit, poiché un valore maggiore di 11 non garantiva una precisione aggiuntiva nella conversione.
+La scelta dei bit di risoluzione richiede una considerazione aggiuntiva, dato che la frequenza del timer e i bit della risoluzione sono interdipendenti e legati alla frequenza del clock, che nel caso dell'ESP32-C3 è di $80MHz$. Più alta è la frequenza della PWM, più bassa è la risoluzione (e viceversa). Dato che non è possibile generare un'onda più veloce di quella consentita dal clock, si dovrebbe puntare a mantenere $f_{\mathrm{PWM}}*2^{\mathrm{DUTY\_RES}} < 80MHz$[^5]. La frequenza utilizzata è $50Hz$, quindi è possibile utilizzare al massimo 14 bit di risoluzione. Il minimo è stato determinato tramite un processo di _trial and error_, grazie ai messaggi di errore dell'API, ed è pari a 9 bit. Il valore finale scelto è 11 bit, poiché un valore maggiore di 11 non garantiva una precisione aggiuntiva nella conversione.
 
 ```rust
 ...
@@ -27,15 +79,14 @@ let driver = LedcDriver::new(channel, timer_driver, gpio).unwrap();
 ...
 ```
 
-### Scrittura e lettura dell'angolo
+#### Scrittura e lettura dell'angolo
 
 Nonostante la documentazione del motore servo SG90 indichi che il range di azione varia tra $1ms$ e $2ms$, le osservazioni pratiche hanno dimostrato che il range effettivo può estendersi da $500\mu s$ a $2500\mu s$. Utilizzando l'intervallo $1ms-2ms$, l'albero del servo motore non riesce a raggiungere gli angoli estremi di $-90°$ e $90°$, suggerendo che le specifiche teoriche non riflettano completamente il comportamento reale del dispositivo o che i servo utilizzati nel progetto non rispettino completamente le specifiche standard.
 
-Il primo passo è mappare l'angolo desiderato in gradi al corrispondente valore in
-microsecondi. La formula utilizzata per questa mappatura lineare è:
+Il primo passo è mappare l'angolo desiderato in gradi al corrispondente valore in microsecondi. La formula utilizzata per questa mappatura lineare è:
 
 $$
-\alpha_{\mu s} = \frac{2500-500}{90-(-90)}(\alpha-(-90)) + 500
+\alpha_{\mu s} = \frac{2500-500}{90-(-90)}(\alpha-(-90)) + 500 
 = \frac{2000}{180}(\alpha+90) + 500
 $$
 
@@ -68,7 +119,7 @@ pub fn write_angle(&mut self, angle: i16) -> Result<()> {
 Per implementare la funzione che "legge" l'angolo, è necessario derivare le funzioni inverse delle mappature precedenti. Questo processo consente di riconvertire il valore digitale del duty cycle e del segnale in microsecondi nell'angolo corrispondente in gradi. Le formule inverse sono:
 
 - $$
-  \alpha_{us} = \frac{duty * f_{period}}{2^{11} - 1}
+  \alpha_{us} = \frac{duty * f_{\mathrm{period}}}{2^{11} - 1}
   $$
 
 - $$
@@ -89,23 +140,25 @@ pub fn read_exp_angle(&mut self) -> i16 {
 
 Durante il processo di conversione, è stato osservato un errore medio di $0.5°$. Questo errore è stato determinato attraverso un test[^6].
 
-## Modulo per la gestione dell'orientamento
+### Modulo per la stima dell'assetto
 
-Nel seguente capitolo verranno illustrate le scelte implementative per la realizzazione del modulo che gestisce l'orientamento del dispositivo utilizzando il sensore MPU6050.
+Per stimare l'assetto dell'aereo, in particolare l'angolo di beccheggio, è stato usato il sensore MPU6050.
 
 Il sensore MPU6050 è un modulo integrato che combina un accelerometro a tre assi e un giroscopio a tre assi, offrendo una soluzione completa per il rilevamento dell'accelerazione, della velocità, dell'orientamento, dello spostamento e altri parametri relativi al movimento di un sistema o di un oggetto.
 
-### Calibrazione del giroscopio
+> _Durante lo sviluppo del modulo, il sensore MPU6050 era posizionato in modo differente rispetto alla configurazione finale. Di conseguenza, l'angolo inizialmente considerato era quello di rollio anziché quello di beccheggio. Tuttavia, dal punto di vista dell'implementazione, ciò non comporta differenze sostanziali, in quanto il principio di funzionamento rimane invariato._
+
+#### Calibrazione del giroscopio
 
 Il sensore MPU6050 in condizioni ideali, dovrebbe restituire valori prossimi allo zero per il giroscopio quando il sensore è fermo; tuttavia, dall'osservazione dei dati grezzi è emerso uno scostamento significativo dai valori attesi, indicando la presenza di uno scostamento, o bias, nel sensore.
 
-Per correggere questo scostamento, è stata implementata una strategia di calaibrazione "naive", che sebbene semplice, è efficace per eliminare il bias rilevato. La tecnica si articola nei seguenti passaggi:
+Per correggere questo bias, è stata implementata una strategia di calaibrazione "naive", che sebbene semplice, è efficace per eliminare il bias rilevato. La tecnica si articola nei seguenti passaggi:
 
 1. Acquisizione di $n$ campioni: vengono effettuate una serie di misurazioni statiche, acquisendo $n$ campioni consecutivi dei dati grezzi provenienti dal giroscopio. Durante questa fase, il sensore è mantenuto in una posizione stabile e senza movimento.
 2. Calcolo della media: i campioni acquisiti vengono utilizzati per calcolare la media dei valori per ciascun asse del giroscopio. Questo passaggio permette di stimare il valore medio del bias presente nel sensore.
 3. Sottrazione del bias: una volta calcolato il bias per ciascun asse, questo viene sottratto dai dati misurati durante il normale funzionamento del sensore.
 
-#### Scelta dei parametri di calibrazione del giroscopio
+##### Scelta dei parametri di calibrazione del giroscopio
 
 Per determinare il numero ottimale di campioni $n$ da utilizzare nella calibrazione, sono stati considerati tre valori distinti, scelti arbitrariamente: 500, 1000 e 2000.
 
@@ -113,20 +166,19 @@ Dopo aver applicato la calibrazione per ciascuno dei valori di $n$[^7], i risult
 
 ![Confronto grafico calibrazioni](./data/imgs/calibrations.png)
 
-#### Considerazioni sull'intervallo di tempo tra le misurazioni
+##### Considerazioni sull'intervallo di tempo tra le misurazioni
 
-Introdurre un intervallo di tempo tra le misurazioni durante la calibrazione del sensore potrebbe teoricamente migliorare le qualità dei dati raccolti. Per valutare l'efficacia di questa strategia è stato condotto un test pratico per determinare l'intervallo minimo di tempo necessario tra le misurazioni. I risultati hanno indicato che l'intervallo minimo di tempo necessario è di $1ms$. Tuttavia è emerso che, per come è implementato il codice internamente, anche un breve ritardo come questo può portare a un significativo aumento del tempo totale di calibrazione, rendendo l'intero processo troppo lungo e quindi impraticabile. (Per 500 misurazioni il tempo teorico di attesa dovrebbe essere di $0.5s$, il tempo osservato era di circa $5s$).
+Introdurre un intervallo di tempo tra le misurazioni durante la calibrazione del sensore potrebbe teoricamente migliorare le qualità dei dati raccolti. Per valutare l'efficacia di questa strategia è stato condotto un test pratico con un intervallo di $1ms$ (il tempo minimo consentito). Tuttavia è emerso che, per come è implementato il codice internamente, anche un breve ritardo come questo può portare a un significativo aumento del tempo totale di calibrazione, rendendo l'intero processo troppo lungo e quindi impraticabile. (Per 500 misurazioni il tempo teorico di attesa dovrebbe essere di $0.5s$, il tempo osservato era di circa $5s$).
 
 Sebbene l'introduzione di un intervallo di tempo tra le misurazioni possa teoricamente migliorare la qualità dei dati di calibrazione, il test pratico ha dimostrato che il tempo di attesa non è compatibile con le esigenze di tempo e precisione del sistema.
 
-### Stima dell'angolo attraverso il giroscopio
+#### Stima dell'angolo attraverso il giroscopio
 
-È possibile ottenere una stima dell'angolo ($\theta_{r,y,p}$) integrando il tasso di rotazione ($\omega_{r,y,p}$) fornito dal giroscopio lungo l'asse di interesse:
+È possibile ottenere una stima dell'angolo ($\theta$) integrando il tasso di rotazione ($\omega$) fornito dal giroscopio lungo l'asse di interesse, nel caso specifico il beccheggio (pitch):
 
 $$
-\theta_{r,y,p}(t) = \int_0^t \omega_{r,y,p}(t)dt
+\theta(t) = \int_0^t \omega(t)dt
 $$
-
 Il giroscopio misura la velocità angolare, quindi l'angolo può essere calcolato integrando questa velocità nel tempo. Nella pratica, l'integrazione continua del segnale del giroscopio (`roll_rate`) è stata eseguita in modo discreto, secondo la formula:
 
 $$
@@ -157,12 +209,14 @@ fn main() -> Result<()> {
 
 I dati raccolti mostrano chiaramente che, nonostante l'angolo stimato segua inizialmente il movimento reale, con il passare del tempo si verifica un accumulo di errore. Questo fenomeno è dovuto al fatto che ciascuna misura del tasso di rotazione presenta un certo margine di errore, il quale viene sommato all'angolo stimato a ogni iterazione durante il processo di integrazione. Di conseguenza, si genera un errore cumulativo che aumenta progressivamente con il passare del tempo.
 
-![Stima dell'angolo attraverso il giroscopio](./data/imgs/estimated_roll_angle_gyro.png)
-![Focus sull'errore dovuto alla stima](./data/imgs/focused_estimated_roll_angle_gyro.png)
+<p align="center">
+	<img src="./data/imgs/estimated_roll_angle_gyro.png" width="45%" />
+    <img src="./data/imgs/focused_estimated_roll_angle_gyro.png" width="45%" />
+</p>
 
 In considerazione di queste limitazioni, è stato valutato l'utilizzo dell'accelerometro come alternativa per stimare l'orientamento assoluto, offrendo una potenziale soluzione per ridurre l'accumulo di errore nel tempo della integrazione del giroscopio.
 
-### Stima dell'angolo attraverso l'accelerometro
+#### Stima dell'angolo attraverso l'accelerometro
 
 L'accelerometro è un sensore in grado di misurare l'accelerazione lineare di un oggetto. Questa informazione può essere sfruttata per stimare l'orientamento assoluto lungo due assi, rollio (asse X) e beccheggio (asse Y), misurando la componente della gravità lungo tali assi. Per determinare l'orientamento lungo l'asse di imbardata (asse Z) sarebbe invece necessario un magnetometro, poiché l'accelerometro da solo non è sufficiente.
 
@@ -174,7 +228,7 @@ Analogamente a quanto fatto per il [giroscopio](#calibrazione-del-giroscopio), l
 
 A differenza del giroscopio, l'accelerometro non soffre del problema dell'accumulo di errore nel tempo, poiché non richiede l'integrazione per calcolare l'orientamento. Tuttavia, presenta un'altra limitazione significativa: è estremamente sensibile ai disturbi esterni, come vibrazioni e movimenti improvvisi.
 
-### Stima dell'angolo con il filtro complementare
+#### Stima dell'angolo con il filtro complementare
 
 I metodi di stima dell'angolo analizzati fino ad ora, basati sull'uso del giroscopio e dell'accelerometro, hanno ciascuno punti di forza e debolezze. L'obiettivo è combinare entrambe le misurazioni attraverso un algoritmo di fusione per bilanciare i vantaggi dei due sensori e correggere i rispettivi svantaggi.
 
@@ -202,10 +256,15 @@ Per determinare il valore più adatto, è stato condotto un esperimento[^10] tes
 
 I risultati migliori si sono ottenuti con valori di $K$ inferiori a 1, in particolare con $K=0.05$ e $K=0.02$, dove l'angolo stimato risultava più stabile e l'effetto dei disturbi ridotto al minimo. Come si osserva dal secondo grafico sottostante, la differenza tra i risultati ottenuti con $K=0.05$ e $K=0.02$ sembrerebbe minima. Pertanto, si è deciso di adottare un valore intermedio, ossia la media tra i due coefficienti, $K=0.035$, ritenendo che questo bilanci in modo ottimale la correzione fornita dall'accelerometro e la stabilità delle misurazioni.
 
-![Confronto tra giroscopio e i K<1](./data/imgs/compl05to002.png)
-![Confronto tra giroscopio e K=0.05 e K=0.02](./data/imgs/compl002and005.png)
-
+<p align="center">
+	<img src="./data/imgs/compl05to002.png" width="45%" />
+    <img src="./data/imgs/compl002and005.png" width="45%" />
+</p>
 Un algoritmo che offre una stima molto più precisa rispetto al filtro complementare è il **filtro di Kalman**. Tuttavia, a causa della sua complessità di implementazione e considerando il target del progetto, si è deciso di utilizzare il filtro complementare, che rappresenta una soluzione più semplice e adeguata per le esigenze attuali.
+
+### Implementazione del controllo PID
+
+
 
 ## Riferimenti
 
