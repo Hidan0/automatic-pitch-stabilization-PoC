@@ -54,19 +54,19 @@ flowchart LR
 
 ### Modulo per la gestione del servomotore SG90
 
-TODO: lasciare perdere l'introduzione su cos'è il sensore, inserire perché è stato sviluppato e quali erano le sfide
+Per controllare l'elevatore dell'aereo, è stato impiegato il servomotore SG90[^1], un motore standard leggero e di piccole dimensioni. Il servomotore può ruotare di circa 180 gradi (90 gradi per ogni direzione) e utilizza segnali di _modulazione di larghezza di impulso_ (PWM) per determinare la posizione dell'albero. 
 
-Il motore servo SG90[^1] è un motore standard leggero e di piccole dimensioni. Il servomotore può ruotare di circa 180 gradi (90 gradi per ogni direzione) e utilizza segnali di modulazione di larghezza di impulso (PWM) per determinare la posizione dell'albero. Un impulso di $1.5ms$ posiziona l'albero al centro, un impulso di $1ms$ lo posiziona all'estrema sinistra (-90 gradi), mentre un impulso di $2ms$ lo posiziona all'estrema destra (90 gradi).
+In particolare, la posizione neutra dell'elevatore corrisponde a un angolo di 0 gradi. Quando l'albero è ruotato a +90 gradi, l'elevatore si inclina verso l'alto di un angolo simile, mentre a -90 gradi si inclina verso il basso. L'angolo effettivo dell'elevatore non corrisponde esattamente a quello del servomotore, a causa di imprecisioni nella geometria del modello e nel collegamento tra l'albero del servo e l'albero dell'elevatore.
+
+Nei seguenti capitoli verranno descritte le scelte implementative adottate per il controllo del servo SG90, in particolare le modalità di generazione del segnale PWM e sulla determinazione della posizione dell'albero.
 
 #### Generare una PWM con l'ESP32-C3
 
-Per generare il segnale di larghezza di impulso con l'ESP32-C3 è stata utilizzata la periferica LEDC[^2] (_LED control_). Questa periferica è progettata principalmente per controllare l'intensità dei LED, ma può anche essere configurata per la generazione di una PWM.
+Per generare il segnale PWM con l'ESP32-C3 è stata utilizzata la periferica LEDC[^2] (_LED control_). Questa periferica è progettata principalmente per controllare l'intensità dei LED, ma può anche essere configurata per la generazione di segnali PWM.
 
 Il modulo LEDC consente di generare fino a 6 segnali PWM indipendenti utilizzando 4 timer, con una risoluzione massima di 14 bit[^3]. A differenza del modello superiore ESP32, l'ESP32-C3 supporta solamente l'output a bassa velocità (_low speed channel_), che viene gestito tramite software[^4].
 
-La creazione delle strutture dati necessarie per l'impostazione di un canale LEDC richiede due informazioni importanti: la frequenza della PWM e la risoluzione. La prima è facilmente determinabile, poiché il servo SG90 funziona con un periodo di $20ms$, da cui si ottiene che la frequenza è $\frac{1}{20ms}=50Hz$.
-
-La scelta dei bit di risoluzione richiede una considerazione aggiuntiva, dato che la frequenza del timer e i bit della risoluzione sono interdipendenti e legati alla frequenza del clock, che nel caso dell'ESP32-C3 è di $80MHz$. Più alta è la frequenza della PWM, più bassa è la risoluzione (e viceversa). Dato che non è possibile generare un'onda più veloce di quella consentita dal clock, si dovrebbe puntare a mantenere $f_{\mathrm{PWM}}*2^{\mathrm{DUTY\_RES}} < 80MHz$[^5]. La frequenza utilizzata è $50Hz$, quindi è possibile utilizzare al massimo 14 bit di risoluzione. Il minimo è stato determinato tramite un processo di _trial and error_, grazie ai messaggi di errore dell'API, ed è pari a 9 bit. Il valore finale scelto è 11 bit, poiché un valore maggiore di 11 non garantiva una precisione aggiuntiva nella conversione.
+La creazione delle strutture dati necessarie per l'impostazione di un canale LEDC richiede due informazioni importanti: la frequenza della PWM e la risoluzione. La prima è facilmente determinabile, poiché il servo SG90 funziona con un periodo di $20ms$, da cui si ottiene che la frequenza è $\frac{1}{20ms}=50Hz$. Per quanto riguarda la risoluzione, il valore massimo supportato è di 14 bit, mentre il minimo, determinato tramite un processo di _trial and error_ sfruttando i messaggi di errore dell'API, è risultato pari a 9 bit. Il valore finale scelto è stato di 11 bit, poiché un valore maggiore di questa soglia non garantiva una precisione aggiuntiva nella conversione.
 
 ```rust
 ...
@@ -142,11 +142,31 @@ Durante il processo di conversione, è stato osservato un errore medio di $0.5°
 
 ### Modulo per la stima dell'assetto
 
-Per stimare l'assetto dell'aereo, in particolare l'angolo di beccheggio, è stato usato il sensore MPU6050.
-
-Il sensore MPU6050 è un modulo integrato che combina un accelerometro a tre assi e un giroscopio a tre assi, offrendo una soluzione completa per il rilevamento dell'accelerazione, della velocità, dell'orientamento, dello spostamento e altri parametri relativi al movimento di un sistema o di un oggetto.
+Per stimare l'assetto dell'aereo, in particolare l'angolo di beccheggio, è stato usato il sensore MPU6050, un modulo integrato che combina un accelerometro a tre assi e un giroscopio a tre assi. Il sensore è gestito tramite la libreria [`mpu6050`](https://crates.io/crates/mpu6050), che semplifica l'acquisizione e l'elaborazione dei dati provenienti dai suoi sensori.
 
 > _Durante lo sviluppo del modulo, il sensore MPU6050 era posizionato in modo differente rispetto alla configurazione finale. Di conseguenza, l'angolo inizialmente considerato era quello di rollio anziché quello di beccheggio. Tuttavia, dal punto di vista dell'implementazione, ciò non comporta differenze sostanziali, in quanto il principio di funzionamento rimane invariato._
+
+#### Comunicazione con il sensore
+
+L'MPU6050 comunica con il controllore tramite il protocollo I2C. Per garantire un buon compromesso tra velocità di trasmissione e affidabilità, è stata scelta una frequenza di $200kHz$, che si colloca tra la modalità _standard_ (fino a $100kHz$) e la modalità _fast_ (fino a $400kHz$). Questa scelta consente di ottenere prestazioni adeguate senza incorrere in problemi di stabilità nella comunicazione.
+
+L'ESP32-C3 non dispone di pin dedicati per il bus I2C, tuttavia, i pin possono essere assegnati via software. Sono stati scelti i seguenti GPIO:
+
+- GPIO 4 per la linea SDA (dati)
+- GPIO 5 per la linea SCL (clock)
+
+Per configurare correttamente la comunicazione I2C, è necessario creare due strutture: `I2cConfig`, che contiene la configurazione del bus, e `I2cDriver`, l'oggetto che viene effettivamente utilizzato per la comunicazione.
+
+```rust
+...
+let scl = peripherals.pins.gpio5;
+let sda = peripherals.pins.gpio4;
+
+let i2c_config = I2cConfig::default().baudrate(Hertz(200000));
+let i2c_driver = I2cDriver::new(peripherals.i2c0, sda, scl, &i2c_config).unwrap();
+...
+```
+
 
 #### Calibrazione del giroscopio
 
@@ -170,7 +190,7 @@ Dopo aver applicato la calibrazione per ciascuno dei valori di $n$[^7], i risult
 
 Introdurre un intervallo di tempo tra le misurazioni durante la calibrazione del sensore potrebbe teoricamente migliorare le qualità dei dati raccolti. Per valutare l'efficacia di questa strategia è stato condotto un test pratico con un intervallo di $1ms$ (il tempo minimo consentito). Tuttavia è emerso che, per come è implementato il codice internamente, anche un breve ritardo come questo può portare a un significativo aumento del tempo totale di calibrazione, rendendo l'intero processo troppo lungo e quindi impraticabile. (Per 500 misurazioni il tempo teorico di attesa dovrebbe essere di $0.5s$, il tempo osservato era di circa $5s$).
 
-Sebbene l'introduzione di un intervallo di tempo tra le misurazioni possa teoricamente migliorare la qualità dei dati di calibrazione, il test pratico ha dimostrato che il tempo di attesa non è compatibile con le esigenze di tempo e precisione del sistema.
+Sebbene l'introduzione di un intervallo di tempo tra le misurazioni possa teoricamente migliorare la qualità dei dati di calibrazione, il test pratico ha dimostrato che il tempo di attesa non è compatibile con le esigenze di tempo e precisione del progetto.
 
 #### Stima dell'angolo attraverso il giroscopio
 
@@ -179,13 +199,13 @@ Sebbene l'introduzione di un intervallo di tempo tra le misurazioni possa teoric
 $$
 \theta(t) = \int_0^t \omega(t)dt
 $$
-Il giroscopio misura la velocità angolare, quindi l'angolo può essere calcolato integrando questa velocità nel tempo. Nella pratica, l'integrazione continua del segnale del giroscopio (`roll_rate`) è stata eseguita in modo discreto, secondo la formula:
+Il giroscopio misura la velocità angolare, quindi l'angolo può essere calcolato integrando questa velocità nel tempo. Nella pratica, l'integrazione continua del segnale del giroscopio è stata eseguita in modo discreto, secondo la formula:
 
 $$
 \theta_{t+1} =\theta_t + \omega_t \cdot \Delta t
 $$
 
-Per verificare il comportamento del sistema, è stata eseguita una demo in cui la scheda veniva mossa lungo l'asse di rollio (asse X) e successivamente mantenuta ferma. Nel contesto della demo il tasso di rotazione (`roll_rate`) è misurato in radianti al secondo, mentre il passo temporale $\Delta t$ è stato impostato a $0.004s$. Questo valore deriva dal delay di $4ms$ presente nel loop di campionamento della demo, poiché la frequenza di aggiornamento scelta per il sistema è di $250Hz$.
+Per verificare il comportamento del sistema, è stata eseguita una demo in cui la scheda veniva mossa lungo l'asse di rollio (asse X) e successivamente mantenuta ferma. Nel contesto della demo il tasso di rotazione è misurato in radianti al secondo, mentre il passo temporale $\Delta t$ è stato impostato a $0.004s$. Questo valore deriva dal delay di $4ms$ presente nel loop di campionamento della demo, poiché la frequenza di aggiornamento scelta per il sistema è di $250Hz$.
 
 ```rust
 const UPDATE_TIME_MS: u8 = 4;
@@ -214,11 +234,11 @@ I dati raccolti mostrano chiaramente che, nonostante l'angolo stimato segua iniz
     <img src="./data/imgs/focused_estimated_roll_angle_gyro.png" width="45%" />
 </p>
 
-In considerazione di queste limitazioni, è stato valutato l'utilizzo dell'accelerometro come alternativa per stimare l'orientamento assoluto, offrendo una potenziale soluzione per ridurre l'accumulo di errore nel tempo della integrazione del giroscopio.
+In considerazione di queste limitazioni, è stato valutato l'utilizzo dell'accelerometro come alternativa per stimare l'orientamento assoluto.
 
 #### Stima dell'angolo attraverso l'accelerometro
 
-L'accelerometro è un sensore in grado di misurare l'accelerazione lineare di un oggetto. Questa informazione può essere sfruttata per stimare l'orientamento assoluto lungo due assi, rollio (asse X) e beccheggio (asse Y), misurando la componente della gravità lungo tali assi. Per determinare l'orientamento lungo l'asse di imbardata (asse Z) sarebbe invece necessario un magnetometro, poiché l'accelerometro da solo non è sufficiente.
+L'accelerometro è un sensore in grado di misurare l'accelerazione lineare di un oggetto. Questa informazione può essere sfruttata per stimare l'orientamento assoluto lungo due assi, rollio (asse X) e beccheggio (asse Y), misurando la componente della gravità lungo tali assi. (Per determinare l'orientamento lungo l'asse di imbardata (asse Z) sarebbe invece necessario un magnetometro, poiché l'accelerometro da solo non è sufficiente).
 
 L'implementazione della stima dell'orientamento tramite accelerometro è semplice e immediata grazie all'uso della libreria _mpu6050_, che fornisce un metodo predefinito per calcolare rollio e beccheggio (`get_acc_angles`).
 
@@ -272,7 +292,7 @@ Un algoritmo che offre una stima molto più precisa rispetto al filtro complemen
 [^2]: Espressif docs, [LED Control (LEDC)](https://docs.espressif.com/projects/esp-idf/en/v5.2.2/esp32c3/api-reference/peripherals/ledc.html)
 [^3]: [LEDC features](https://www.espressif.com/sites/default/files/documentation/esp32-c3_technical_reference_manual_en.pdf#ledpwm)
 [^4]: [LEDC High and Low Speed Mode](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/ledc.html#ledc-high-and-low-speed-mode)
-[^5]: [ESP32 Basics: Generating a PWM Signal on the ESP32](https://lastminuteengineers.com/esp32-pwm-tutorial/)
+[^5]: TODO: rimuovere [ESP32 Basics: Generating a PWM Signal on the ESP32](https://lastminuteengineers.com/esp32-pwm-tutorial/)
 [^6]: Test demo reperibile al tag `servo_error_test`
 [^7]: Demo calibrazione reperibile al tag `calibration`
 [^8]: Analisi in `data/Analysis.ipynb`
