@@ -280,9 +280,41 @@ I risultati migliori si sono ottenuti con valori di $K$ inferiori a 1, in partic
 	<img src="./data/imgs/compl05to002.png" width="45%" />
     <img src="./data/imgs/compl002and005.png" width="45%" />
 </p>
+
 Un algoritmo che offre una stima molto più precisa rispetto al filtro complementare è il **filtro di Kalman**. Tuttavia, a causa della sua complessità di implementazione e considerando il target del progetto, si è deciso di utilizzare il filtro complementare, che rappresenta una soluzione più semplice e adeguata per le esigenze attuali.
 
 ### Implementazione del controllo PID
+
+Per implementare la stabilizzazione automatica è stato adottato un feedback loop chiuso, in cui lo stato del sistema è determinato dall'angolo di beccheggio. Questo viene regolato attraverso la superficie di controllo apposita, l'elevatore, azionato dal servomotore. Il controllore scelto per gestire il sistema è un PID, per la sua semplicità di implementazione e flessibilità.
+
+#### Simulazione del PID
+
+Dato che inizialmente non era ancora stato sviluppato un modello fisico, è stata realizzata una simulazione semplificata per la configurazione del PID. Il moto di rotazione è stato modellato con la seguente equazione differenziale:
+$$
+\frac{dx}{dt} = -a x + bu
+$$
+dove:
+
+- $x$ rappresenta l'errore (angolo di beccheggio rispetto al setpoint), l'angolo che determina la posizione dell'elevatore;
+- $a$ è un coefficiente di smorzamento, che rappresenta forze dissipative come attrito e resistenza aerodinamica (assunto molto basso a causa della configurazione fisica del sistema);
+- $u$ è l'output del PID;
+- $b$ è un parametro che indica l'influenza dell'output sul sistema (anche in questo caso, ipotizzato basso).
+
+La simulazione è stata utilizzata per testare il comportamento del PID in due scenari:
+
+1. _Setpoint_ a 0° con errore iniziale di 45°: In questo caso, solo il termine proporzionale si è rivelato sufficiente per riportare il sistema al _setpoint_. L'aggiunta dei termini integrale e derivativo non ha mostrato miglioramenti significativi.
+
+​	TODO: immagini
+
+2. _Setpoint_ a 90° con errore iniziale di 0°: Qui solo il termine proporzionale non è stato sufficiente, rendendo necessaria l'inclusione dei termini integrale e derivativo per ottenere un comportamento stabile.
+
+ 	TODO: immagini
+
+Questa differenza di comportamento è attribuita alla natura della funzione di simulazione, che favorisce la stabilizzazione intorno a 0°, mentre in condizioni diverse emergono dinamiche più complesse.
+
+#### Test pratico senza modello
+
+#### Test pratico con il modello
 
 
 
