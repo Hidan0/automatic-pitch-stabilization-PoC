@@ -4,17 +4,21 @@
 
 ## Introduzione
 
-TODO: introduzione con obiettivi del corso e del progetto
+L'obiettivo del progetto è lo sviluppo di un sistema di stabilizzazione automatica per un aeroplano di carta, utilizzando una piattaforma embedded per il controllo in tempo reale. Il progetto pone particolare enfasi sull'hardware, con la scelta e l'integrazione di sensori e attuatori per il bilanciamento del velivolo, affrontando le sfide pratiche dell'interfacciamento con il mondo fisico.
+
+Attraverso il progetto, si intendono sviluppare le competenze fondamentali nella progettazione di sistemi embedded come: la scelta della piattaforma hardware, sensori e attuatori più adatti al proprio scopo; la progettazione e l'implementazione di algoritmi di controllo e la scelta di protocolli di comunicazione per l'interfacciamento dei dispositivi.
 
 ## Descrizione
 
-Il progetto consiste nello sviluppo di un sistema in grado di rilevare l'assetto di un aereo, in particolare l'angolo di beccheggio, e di regolare di conseguenza l'inclinazione della superficie di controllo (elevatore), compensando eventuali deviazioni rispetto alla posizione desiderata. 
+Il progetto consiste nello sviluppo di un sistema in grado di rilevare l'assetto di un aereo di carta, in particolare l'angolo di beccheggio, e di regolare di conseguenza l'inclinazione della superficie di controllo (elevatore), compensando eventuali deviazioni rispetto alla posizione desiderata.
+
+Il sistema è basato su un ESP32-C3 che gestisce i dati provenienti da un sensore IMU MPU6050 per rilevare l'ordientamento del velivolo e controlla il servomotore responsabile della regolazione della superficie di volo. Il software implementato sul SoC è progettato per interpretare i dati del sensore e applicare le correzioni necessarie per mantenere l'aereo in equilibrio.
 
 ### Componentistica e librerie
 
 **Componenti elettronici**:
 - ESP32-C3
-- MPU6050
+- IMU MPU6050
 - SG90
 - Breadboard da 830 contatti
 - Led verde e rosso
@@ -36,15 +40,15 @@ Il progetto consiste nello sviluppo di un sistema in grado di rilevare l'assetto
 
 #### Architettura del sistema
 
-L'architettura si compone di due parti principali:
-1. **Componente elettronica e software**: include il microcontrollore ESP32-C3, il sensore MPU6050 per la misura dell'assetto e il servomotore SG90 per il controllo dell'elevatore.
-1. **Modello fisico**: una struttura semplificata che simula l'aereo, costituito da una base in cartoncino su cui sono montati il sensore e il servomotore. Il tutto è fissato su una struttura ad H che consente il movimento attorno all'asse di beccheggio.
-
-TODO: circuito
+TODO: schema e circuito
 
 #### Funzionamento del sistema
 
-Il funzionamento del sistema può essere diviso in due parti principali: _stima dell'assetto_ e _stabilizzazione automatica del beccheggio attraverso il controllo PID_. Nella fase di stima, inizialmente il sistema calibra l'MPU6050, per garantire misurazioni più accurate. Successivamente, la stabilizzazione automatica viene gestita attraverso un feedback loop chiuso, che elabora i dati dell'assetto e determina il segnale di correzione da inviare al servomotore. 
+Il funzionamento del sistema può essere diviso in due parti principali: _stima dell'assetto_ e _stabilizzazione automatica del beccheggio attraverso il controllo PID_. 
+
+Nella fase di stima, inizialmente il sistema calibra l'MPU6050, per garantire misurazioni più accurate.  Successivamente, l'orientamento viene stimato a partire dai dati acquisiti dal sensore. La fase di stabilizzazione automatica viene gestita attraverso un feedback loop chiuso, che elabora i dati dell'assetto e determina il segnale di correzione da inviare al servomotore. Il sistema è progettato per funzionare con una frequenza di aggiornamento di $4ms$ ($250Hz$), garantendo una risposta rapida e sufficiente per lo scopo del progetto.
+
+Il flusso operativo del sistema può essere schematizzato come segue:
 
 ````mermaid
 flowchart LR 
@@ -58,6 +62,8 @@ flowchart LR
 ### Modello fisico
 
 TODO: descrizione del modello fisico
+
+**Modello fisico**: una struttura semplificata che simula l'aereo, costituito da una base in cartoncino su cui sono montati il sensore e il servomotore. Il tutto è fissato su una struttura ad H che consente il movimento attorno all'asse di beccheggio.
 
 ## Sviluppo e implementazione
 
