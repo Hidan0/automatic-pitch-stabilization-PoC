@@ -2,30 +2,13 @@
 
 [toc]
 
+## Introduzione
+
+TODO: introduzione con obiettivi del corso e del progetto
+
 ## Descrizione
 
 Il progetto consiste nello sviluppo di un sistema in grado di rilevare l'assetto di un aereo, in particolare l'angolo di beccheggio, e di regolare di conseguenza l'inclinazione della superficie di controllo (elevatore), compensando eventuali deviazioni rispetto alla posizione desiderata. 
-
-### Architettura del sistema
-
-L'architettura si compone di due parti principali:
-1. **Componente elettronica e software**: include il microcontrollore ESP32-C3, il sensore MPU6050 per la misura dell'assetto e il servomotore SG90 per il controllo dell'elevatore. L'implementazione del software è scritta in Rust.
-1. **Modello fisico**: una struttura semplificata che simula l'aereo, costituito da una base in cartoncino su cui sono montati il sensore e il servomotore. Il tutto è fissato su una struttura ad H che consente il movimento attorno all'asse di beccheggio.
-
-TODO: circuito
-
-### Funzionamento del sistema
-
-Il funzionamento del sistema può essere diviso in due parti principali: _stima dell'assetto_ e _stabilizzazione automatica del beccheggio attraverso il controllo PID_. Nella fase di stima, inizialmente il sistema calibra l'MPU6050, per garantire misurazioni più accurate. Successivamente, la stabilizzazione automatica viene gestita attraverso un feedback loop chiuso, che elabora i dati dell'assetto e determina il segnale di correzione da inviare al servomotore. 
-
-````mermaid
-flowchart LR 
-	a(Calibrazione MPU6050) --> b(Acquisizione dati)
-	b --> c(Stima dell'angolo)
-	c --> d(Elaborazione e controllo PID)
-	d --> e(Attuazione della correzione)
-	e --> b
-````
 
 ### Componentistica e librerie
 
@@ -39,6 +22,7 @@ flowchart LR
 
 **Software**:
 
+- Linguaggio di programmazione: Rust
 - Ecosistema [esp-rs](https://github.com/esp-rs) per Rust
 - Libreria [mpu6050](https://crates.io/crates/mpu6050)
 
@@ -49,6 +33,31 @@ flowchart LR
 - Colla
 - Filo di metallo
 - Spiedi di bambù
+
+#### Architettura del sistema
+
+L'architettura si compone di due parti principali:
+1. **Componente elettronica e software**: include il microcontrollore ESP32-C3, il sensore MPU6050 per la misura dell'assetto e il servomotore SG90 per il controllo dell'elevatore.
+1. **Modello fisico**: una struttura semplificata che simula l'aereo, costituito da una base in cartoncino su cui sono montati il sensore e il servomotore. Il tutto è fissato su una struttura ad H che consente il movimento attorno all'asse di beccheggio.
+
+TODO: circuito
+
+#### Funzionamento del sistema
+
+Il funzionamento del sistema può essere diviso in due parti principali: _stima dell'assetto_ e _stabilizzazione automatica del beccheggio attraverso il controllo PID_. Nella fase di stima, inizialmente il sistema calibra l'MPU6050, per garantire misurazioni più accurate. Successivamente, la stabilizzazione automatica viene gestita attraverso un feedback loop chiuso, che elabora i dati dell'assetto e determina il segnale di correzione da inviare al servomotore. 
+
+````mermaid
+flowchart LR 
+	a(Calibrazione MPU6050) --> b(Acquisizione dati)
+	b --> c(Stima dell'angolo)
+	c --> d(Elaborazione e controllo PID)
+	d --> e(Attuazione della correzione)
+	e --> b
+````
+
+### Modello fisico
+
+TODO: descrizione del modello fisico
 
 ## Sviluppo e implementazione
 
@@ -283,13 +292,13 @@ I risultati migliori si sono ottenuti con valori di $K$ inferiori a 1, in partic
 
 Un algoritmo che offre una stima molto più precisa rispetto al filtro complementare è il **filtro di Kalman**. Tuttavia, a causa della sua complessità di implementazione e considerando il target del progetto, si è deciso di utilizzare il filtro complementare, che rappresenta una soluzione più semplice e adeguata per le esigenze attuali.
 
-### Implementazione del controllo PID
+### Stabilizzazione del beccheggio
 
 Per implementare la stabilizzazione automatica è stato adottato un feedback loop chiuso, in cui lo stato del sistema è determinato dall'angolo di beccheggio. Questo viene regolato attraverso la superficie di controllo apposita, l'elevatore, azionato dal servomotore. Il controllore scelto per gestire il sistema è un PID, per la sua semplicità di implementazione e flessibilità.
 
 #### Simulazione del PID
 
-Dato che inizialmente non era ancora stato sviluppato un modello fisico, è stata realizzata una simulazione semplificata per la configurazione del PID. Il moto di rotazione è stato modellato con la seguente equazione differenziale:
+Dato che inizialmente non era ancora stato sviluppato un modello fisico, è stata realizzata una simulazione[^11] semplificata per la configurazione del PID. Il moto di rotazione è stato modellato con la seguente equazione differenziale:
 $$
 \frac{dx}{dt} = -a x + bu
 $$
@@ -297,22 +306,84 @@ dove:
 
 - $x$ rappresenta l'errore (angolo di beccheggio rispetto al setpoint), l'angolo che determina la posizione dell'elevatore;
 - $a$ è un coefficiente di smorzamento, che rappresenta forze dissipative come attrito e resistenza aerodinamica (assunto molto basso a causa della configurazione fisica del sistema);
-- $u$ è l'output del PID;
+- $u$ è l'output del controllo PID;
 - $b$ è un parametro che indica l'influenza dell'output sul sistema (anche in questo caso, ipotizzato basso).
 
-La simulazione è stata utilizzata per testare il comportamento del PID in due scenari:
+Il codice che implementa la simulazione è il seguente:
 
-1. _Setpoint_ a 0° con errore iniziale di 45°: In questo caso, solo il termine proporzionale si è rivelato sufficiente per riportare il sistema al _setpoint_. L'aggiunta dei termini integrale e derivativo non ha mostrato miglioramenti significativi.
+```python
+...
 
-​	TODO: immagini
+# sim params
+dt = 0.004
+T = 60
+steps = int(T/dt)
 
-2. _Setpoint_ a 90° con errore iniziale di 0°: Qui solo il termine proporzionale non è stato sufficiente, rendendo necessaria l'inclusione dei termini integrale e derivativo per ottenere un comportamento stabile.
+# sys params
+a = .1 #damping factor
+b = .2 #control effectiveness 
 
- 	TODO: immagini
+def clamp(n, min_val, max_val):
+    return max(min_val, min(n, max_val))
 
-Questa differenza di comportamento è attribuita alla natura della funzione di simulazione, che favorisce la stabilizzazione intorno a 0°, mentre in condizioni diverse emergono dinamiche più complesse.
+def simulate(Kp, Ki, Kd, sp, initial):
+    n = len(Kp)
+    angle = np.full(n, initial) # initial
+    i = np.full(n, 0.)
+    prev_err = sp - angle.copy()
+    
+    out = [[] for _ in range(n)]
+    time = []
+    
+    for j in range(steps):
+        t = j * dt
+        for y in range(n):
+            err = sp - angle[y]
+            
+            i[y] += err * dt
+            der = (err - prev_err[y]) / dt
+            prev_err[y] = err
+        
+            u = Kp[y] * err + Ki[y] * i[y] + Kd[y] * der
+        
+            angle[y] += (-a * angle[y] + b * clamp(u, -90, 90)) * dt
+        
+            out[y].append(angle[y])
+        time.append(t)
+    return (out, time)
 
-#### Test pratico senza modello
+# Es di utilizzo:
+# Kp = [2., 10.]
+# Ki = [0., .15]
+# Kd = [0., 0.]
+# out, time = simulate(Kp, Ki, Kd, 0., 45.)
+```
+
+
+
+La simulazione è stata utilizzata per testare il comportamento del PID in due scenari: _setpoint_ a 0° con errore iniziale di 45° e _setpoint_ a 90° con errore iniziale di 0°. Il primo rappresenta una situazione plausibile nel funzionamento reale del sistema, mentre il secondo è stato introdotto per testare il comportamento del controllore in condizioni differenti dal sistema.
+
+Per il primo scenario di test, sono stati sperimentati valori di $K_p$ pari a 1, 2 e 4. Durante le prove pratiche, ruotando fisicamente il sistema, si è osservato che con $K_p=2$ il sistema rispondeva in modo rapido ma senza risultare eccessivamente brusco. Valori superiori, come $K_p = 4$, portavano invece a una risposta troppo brusca del servo. 
+
+L'introduzione dei termini $K_i$ e $K_d$ non ha portato miglioramenti significativi. Anzi, nei test pratici sono emersi due problemi di instabilità:
+
+- un valore elevato di $K_i$ impediva all'albero del servo di tornare correttamente in asse dopo una rotazione.
+- $K_d$ amplificava il rumore del sistema, senza apportare benefici evidenti alla stabilità.
+
+Queste criticità non erano evidenti in simulazione, poiché il modello utilizzato per le dinamiche rotazionali non teneva conto di rumori e disturbi. Inoltre, dato che neanche in simulazione l’aggiunta di $K_i$ e $K_d$ ha prodotto vantaggi significativi, si è deciso di adottare esclusivamente il controllo proporzionale, fissando $K_p = 2$.
+
+<p align="center">
+	<img src="./data/imgs/Case1_Kp_test.png" width="45%" />
+    <img src="./data/imgs/Case1_All_test.png" width="45%" />
+</p>
+
+Nel secondo scenario, il punto di partenza è stato $K_p=2$, con gli altri termini impostati a zero, poiché non offrivano vantaggi significativi. Tuttavia, si è osservato che questo valore era troppo basso per consentire il raggiungimento del _setpoint_. Per questo motivo, è stato aumentato a 10, ma il sistema continuava a non raggiungere l'obiettivo. Solo con l'aggiunta del termine integrativo, con $K_i=0.15$, è stato possibile ottenere il risultato desiderato. Anche in questo caso, il termine derivativo non ha portato miglioramenti significativi.
+
+![Secondo scenario](./data/imgs/Case2_test.png)
+
+Questi parametri sono stati successivamente testati nello scenario 1, quello di maggiore interesse per il progetto, e confrontati con i risultati precedenti. Un aspetto da approfondire riguarda il valore elevato di $K_p$ nel secondo scenario, che potrebbe portare a un movimento troppo brusco. Tuttavia, si è deciso di proseguire comunque con i test, poiché, anche con l'aggiunta di $K_i$, il servo riusciva a tornare correttamente in asse. Entrambi i set di parametri $S_1=(K_p=2, K_i=0,K_d=0)$ e $S_2=(K_p=10, K_i=0.15,K_d=0)$ sono stati scelti per proseguire i test sul modello fisico.
+
+![Confronto parametri dei due scenari](./data/imgs/Case1_Case2_test.png)
 
 #### Test pratico con il modello
 
@@ -330,3 +401,4 @@ Questa differenza di comportamento è attribuita alla natura della funzione di s
 [^8]: Analisi in `data/Analysis.ipynb`
 [^9]: Demo calibrazione e stima dell'accelerometro al tag `accel_estimation`
 [^10]: Demo filtro complementare al tag `compl_filter`
+[^11]: Simulazione in `data/PID_simulation.ipynb`
