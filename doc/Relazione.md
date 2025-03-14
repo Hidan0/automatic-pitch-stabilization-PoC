@@ -63,7 +63,7 @@ flowchart LR
 
 TODO: descrizione del modello fisico
 
-**Modello fisico**: una struttura semplificata che simula l'aereo, costituito da una base in cartoncino su cui sono montati il sensore e il servomotore. Il tutto è fissato su una struttura ad H che consente il movimento attorno all'asse di beccheggio.
+una struttura semplificata che simula l'aereo, costituito da una base in cartoncino su cui sono montati il sensore e il servomotore. Il tutto è fissato su una struttura ad H che consente il movimento attorno all'asse di beccheggio.
 
 ## Sviluppo e implementazione
 
@@ -182,12 +182,13 @@ let i2c_driver = I2cDriver::new(peripherals.i2c0, sda, scl, &i2c_config).unwrap(
 ...
 ```
 
+#### TODO: settaggio impostazioni MPU
 
 #### Calibrazione del giroscopio
 
 Il sensore MPU6050 in condizioni ideali, dovrebbe restituire valori prossimi allo zero per il giroscopio quando il sensore è fermo; tuttavia, dall'osservazione dei dati grezzi è emerso uno scostamento significativo dai valori attesi, indicando la presenza di uno scostamento, o bias, nel sensore.
 
-Per correggere questo bias, è stata implementata una strategia di calaibrazione "naive", che sebbene semplice, è efficace per eliminare il bias rilevato. La tecnica si articola nei seguenti passaggi:
+Per correggere questo bias, è stata implementata una strategia di calibrazione "naive", che sebbene semplice, è efficace per eliminare il bias rilevato. La tecnica si articola nei seguenti passaggi:
 
 1. Acquisizione di $n$ campioni: vengono effettuate una serie di misurazioni statiche, acquisendo $n$ campioni consecutivi dei dati grezzi provenienti dal giroscopio. Durante questa fase, il sensore è mantenuto in una posizione stabile e senza movimento.
 2. Calcolo della media: i campioni acquisiti vengono utilizzati per calcolare la media dei valori per ciascun asse del giroscopio. Questo passaggio permette di stimare il valore medio del bias presente nel sensore.
@@ -199,7 +200,7 @@ Per determinare il numero ottimale di campioni $n$ da utilizzare nella calibrazi
 
 Dopo aver applicato la calibrazione per ciascuno dei valori di $n$[^7], i risultati sono stati raccolti, analizzati e confrontati[^8]. L'analisi grafica ha evidenziato come l'aumento del numero di campioni $n$ porti a una riduzione progressiva del bias residuo. In particolare è stato osservato che utilizzando 2000 campioni, i valori medi del bias risultano essere i più vicini allo zero, indicando una calibrazione più accurata e stabile rispetto alle altre due configurazioni.
 
-![Confronto grafico calibrazioni](./data/imgs/calibrations.png)
+<img alt="Confronto grafico calibrazioni" src="./data/imgs/calibrations.png" style="width: 50%"/>
 
 ##### Considerazioni sull'intervallo di tempo tra le misurazioni
 
@@ -220,7 +221,7 @@ $$
 \theta_{t+1} =\theta_t + \omega_t \cdot \Delta t
 $$
 
-Per verificare il comportamento del sistema, è stata eseguita una demo in cui la scheda veniva mossa lungo l'asse di rollio (asse X) e successivamente mantenuta ferma. Nel contesto della demo il tasso di rotazione è misurato in radianti al secondo, mentre il passo temporale $\Delta t$ è stato impostato a $0.004s$. Questo valore deriva dal delay di $4ms$ presente nel loop di campionamento della demo, poiché la frequenza di aggiornamento scelta per il sistema è di $250Hz$.
+Per verificare il comportamento del sistema, è stata eseguita una demo in cui la scheda veniva mossa lungo l'asse di rollio (asse X) e successivamente mantenuta ferma. Nel contesto della demo il tasso di rotazione è misurato in radianti al secondo, mentre il passo temporale $\Delta t$ è stato impostato a $0.004s$. (Questo valore deriva dal delay di $4ms$ presente nel loop di campionamento della demo, poiché la frequenza di aggiornamento scelta per il sistema è di $250Hz$).
 
 ```rust
 const UPDATE_TIME_MS: u8 = 4;
@@ -244,10 +245,10 @@ fn main() -> Result<()> {
 
 I dati raccolti mostrano chiaramente che, nonostante l'angolo stimato segua inizialmente il movimento reale, con il passare del tempo si verifica un accumulo di errore. Questo fenomeno è dovuto al fatto che ciascuna misura del tasso di rotazione presenta un certo margine di errore, il quale viene sommato all'angolo stimato a ogni iterazione durante il processo di integrazione. Di conseguenza, si genera un errore cumulativo che aumenta progressivamente con il passare del tempo.
 
-<p align="center">
-	<img src="./data/imgs/estimated_roll_angle_gyro.png" width="45%" />
-    <img src="./data/imgs/focused_estimated_roll_angle_gyro.png" width="45%" />
-</p>
+
+
+<img src="./data/imgs/estimated_roll_angle_gyro.png" style="width: 48%" /><img src="./data/imgs/focused_estimated_roll_angle_gyro.png" style="width: 48%" />
+
 
 In considerazione di queste limitazioni, è stato valutato l'utilizzo dell'accelerometro come alternativa per stimare l'orientamento assoluto.
 
@@ -259,7 +260,7 @@ L'implementazione della stima dell'orientamento tramite accelerometro è semplic
 
 Analogamente a quanto fatto per il [giroscopio](#calibrazione-del-giroscopio), l'accelerometro è stato calibrato utilizzando una serie di 2000 misurazioni. Come mostrato nel grafico, le misurazioni calibrate risultano più accurate, con valori che si avvicinano molto di più allo zero rispetto a quelli ottenuti senza calibrazione[^9].
 
-![Confronto tra accelerometro calibrato e non](./data/imgs/accelerometer_calibrations.png)
+<img alt="Confronto tra accelerometro calibrato e non" src="./data/imgs/accelerometer_calibrations.png" style="width: 50%"/>
 
 A differenza del giroscopio, l'accelerometro non soffre del problema dell'accumulo di errore nel tempo, poiché non richiede l'integrazione per calcolare l'orientamento. Tuttavia, presenta un'altra limitazione significativa: è estremamente sensibile ai disturbi esterni, come vibrazioni e movimenti improvvisi.
 
@@ -287,14 +288,11 @@ La scelta del valore di $K$ è cruciale: un valore troppo elevato rischia di sov
 
 Per determinare il valore più adatto, è stato condotto un esperimento[^10] testando i seguenti valori di $K$: $5, 2, 0.5, 0.05, 0.02$. È stato osservato che con $K=5$, il sistema genera valori di `+/-inf`, indicando dei overflow. Con $K=2$, la misurazione è risultata estremamente disturbata e instabile come si può osservare dal grafico sottostante.
 
-![Confronto tra giroscopio e filtro complementare con K=2](./data/imgs/compl2.png)
+<img alt="Confronto tra giroscopio e filtro complementare con K=2" src="./data/imgs/compl2.png" style="width: 50%"/>
 
 I risultati migliori si sono ottenuti con valori di $K$ inferiori a 1, in particolare con $K=0.05$ e $K=0.02$, dove l'angolo stimato risultava più stabile e l'effetto dei disturbi ridotto al minimo. Come si osserva dal secondo grafico sottostante, la differenza tra i risultati ottenuti con $K=0.05$ e $K=0.02$ sembrerebbe minima. Pertanto, si è deciso di adottare un valore intermedio, ossia la media tra i due coefficienti, $K=0.035$, ritenendo che questo bilanci in modo ottimale la correzione fornita dall'accelerometro e la stabilità delle misurazioni.
 
-<p align="center">
-	<img src="./data/imgs/compl05to002.png" width="45%" />
-    <img src="./data/imgs/compl002and005.png" width="45%" />
-</p>
+<img src="./data/imgs/compl05to002.png" style="width: 48%" /><img src="./data/imgs/compl002and005.png" style="width:48%" />
 
 Un algoritmo che offre una stima molto più precisa rispetto al filtro complementare è il **filtro di Kalman**. Tuttavia, a causa della sua complessità di implementazione e considerando il target del progetto, si è deciso di utilizzare il filtro complementare, che rappresenta una soluzione più semplice e adeguata per le esigenze attuali.
 
@@ -365,11 +363,9 @@ def simulate(Kp, Ki, Kd, sp, initial):
 # out, time = simulate(Kp, Ki, Kd, 0., 45.)
 ```
 
-
-
 La simulazione è stata utilizzata per testare il comportamento del PID in due scenari: _setpoint_ a 0° con errore iniziale di 45° e _setpoint_ a 90° con errore iniziale di 0°. Il primo rappresenta una situazione plausibile nel funzionamento reale del sistema, mentre il secondo è stato introdotto per testare il comportamento del controllore in condizioni differenti dal sistema.
 
-Per il primo scenario di test, sono stati sperimentati valori di $K_p$ pari a 1, 2 e 4. Durante le prove pratiche, ruotando fisicamente il sistema, si è osservato che con $K_p=2$ il sistema rispondeva in modo rapido ma senza risultare eccessivamente brusco. Valori superiori, come $K_p = 4$, portavano invece a una risposta troppo brusca del servo. 
+Per il primo scenario di test, sono stati sperimentati valori di $K_p$ pari a 1, 2 e 4. Durante le prove pratiche, ruotando fisicamente la board, si è osservato che con $K_p=2$ il sistema rispondeva in modo rapido ma senza risultare eccessivamente brusco. Valori superiori, come $K_p = 4$, portavano invece a una risposta troppo brusca del servo.
 
 L'introduzione dei termini $K_i$ e $K_d$ non ha portato miglioramenti significativi. Anzi, nei test pratici sono emersi due problemi di instabilità:
 
@@ -378,18 +374,16 @@ L'introduzione dei termini $K_i$ e $K_d$ non ha portato miglioramenti significat
 
 Queste criticità non erano evidenti in simulazione, poiché il modello utilizzato per le dinamiche rotazionali non teneva conto di rumori e disturbi. Inoltre, dato che neanche in simulazione l’aggiunta di $K_i$ e $K_d$ ha prodotto vantaggi significativi, si è deciso di adottare esclusivamente il controllo proporzionale, fissando $K_p = 2$.
 
-<p align="center">
-	<img src="./data/imgs/Case1_Kp_test.png" width="45%" />
-    <img src="./data/imgs/Case1_All_test.png" width="45%" />
-</p>
+<img src="./data/imgs/Case1_Kp_test.png" style="width:48%" /><img src="./data/imgs/Case1_All_test.png" style="width:48%" />
+
 
 Nel secondo scenario, il punto di partenza è stato $K_p=2$, con gli altri termini impostati a zero, poiché non offrivano vantaggi significativi. Tuttavia, si è osservato che questo valore era troppo basso per consentire il raggiungimento del _setpoint_. Per questo motivo, è stato aumentato a 10, ma il sistema continuava a non raggiungere l'obiettivo. Solo con l'aggiunta del termine integrativo, con $K_i=0.15$, è stato possibile ottenere il risultato desiderato. Anche in questo caso, il termine derivativo non ha portato miglioramenti significativi.
 
-![Secondo scenario](./data/imgs/Case2_test.png)
+<img alt="Secondo scenario" src="./data/imgs/Case2_test.png" style="width: 50%"/>
 
-Questi parametri sono stati successivamente testati nello scenario 1, quello di maggiore interesse per il progetto, e confrontati con i risultati precedenti. Un aspetto da approfondire riguarda il valore elevato di $K_p$ nel secondo scenario, che potrebbe portare a un movimento troppo brusco. Tuttavia, si è deciso di proseguire comunque con i test, poiché, anche con l'aggiunta di $K_i$, il servo riusciva a tornare correttamente in asse. Entrambi i set di parametri $S_1=(K_p=2, K_i=0,K_d=0)$ e $S_2=(K_p=10, K_i=0.15,K_d=0)$ sono stati scelti per proseguire i test sul modello fisico.
+Questi parametri sono stati successivamente testati nello scenario 1, quello di maggiore interesse per il progetto, e confrontati con i risultati precedenti. Un aspetto da approfondire riguarda il valore elevato di $K_p$ nel secondo scenario, che potrebbe portare a un movimento troppo brusco. Tuttavia, si è deciso di proseguire comunque con i test, poiché, anche con l'aggiunta di $K_i$, il servo riusciva a tornare correttamente in asse. Entrambi i set di parametri, $S_1=(K_p=2, K_i=0,K_d=0)$ e $S_2=(K_p=10, K_i=0.15,K_d=0)$, sono stati scelti per proseguire i test sul modello fisico.
 
-![Confronto parametri dei due scenari](./data/imgs/Case1_Case2_test.png)
+<img alt="Confronto parametri dei due scenari" src="./data/imgs/Case1_Case2_test.png" style="width: 50%"/>
 
 #### Test pratico con il modello
 
