@@ -51,6 +51,7 @@ impl<'a> ServoSG90<'a> {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn read_exp_angle(&mut self) -> i16 {
         let duty = self.driver.get_duty();
         let angle_us = (duty as f32 * FREQ) / self.max_duty as f32;
