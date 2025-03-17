@@ -61,11 +61,21 @@ flowchart LR
 
 ### Modello fisico
 
-TODO: descrizione del modello fisico
+Il corpo dell'aereo è costituito da una parte principale in cartoncino, sulla quale sono montati il giroscopio e il servomotore, e da una sezione più piccola che funge da elevatore. Per consentire il movimento dell'elevatore, questo è stato fissato con del nastro adesivo, lasciando un piccolo spazio rispetto alla struttura principale per garantire libertà di rotazione.
 
-una struttura semplificata che simula l'aereo, costituito da una base in cartoncino su cui sono montati il sensore e il servomotore. Il tutto è fissato su una struttura ad H che consente il movimento attorno all'asse di beccheggio.
+Il servomotore è collegato all'elevatore tramite un filo metallico, che funge da asta di comando. L'asta è agganciata al braccio del servo da un lato e dall'altro a una piccola superficie verticale fissata sull'elevatore. Questo collegamento consente al servo di trasmettere il movimento al piano mobile. 
+
+L'intera struttura è montata su un telaio a forma di H, realizzato con bastoncini di bambù, che consente alla piattaforma superiore di ruotare liberamente attorno all'asse di beccheggio, simulando il movimento di un aeroplano in volo. La base di supporto del telaio è anch'essa realizzata in cartoncino.
+
+Inizialmente, il corpo dell'aereo aveva una forma rettangolare, lunga e stretta. Successivamente, nel tentativo di migliorare l'aerodinamicità, è stato leggermente accorciato e allargato. Questa modifica ha inoltre permesso di ottimizzare la lunghezza dell'asta di comando, garantendo una trasmissione del movimento più accurata.
+
+<img alt="Vista dall'alto del modello" src="./data/imgs/Plane_TopView.jpg" style="width: 50%" />
+
+<img alt="Modello completo" src="./data/imgs/Full_model.jpg" style="width: 50%" />
 
 ## Sviluppo e implementazione
+
+> NB: _negli snippet di codice non è presente il controllo degli errori_
 
 ### Modulo per la gestione del servomotore SG90
 
@@ -153,7 +163,7 @@ pub fn read_exp_angle(&mut self) -> i16 {
 
 È importante sottolineare che il valore letto dell'angolo non è effettivamente frutto della lettura di un sensore, ma una conversione del valore che assume il duty cycle nel momento della lettura.
 
-Durante il processo di conversione, è stato osservato un errore medio di $0.5°$. Questo errore è stato determinato attraverso un test[^6].
+Durante il processo di conversione, è stato osservato un errore medio di $0.5°$. Questo errore è stato determinato attraverso un test[^5].
 
 ### Modulo per la stima dell'assetto
 
@@ -182,7 +192,31 @@ let i2c_driver = I2cDriver::new(peripherals.i2c0, sda, scl, &i2c_config).unwrap(
 ...
 ```
 
-#### TODO: settaggio impostazioni MPU
+#### Setup del MPU6050
+
+Il sensore MPU6050 viene inizializzato e configurato con la seguente funzione: 
+
+```rust
+fn setup_mpu<D: DelayNs>(delay: &mut D, i2c: I2cDriver<'a>) -> Result<MpuDriver<'a>> {
+    let mut mpu = Mpu6050::new(i2c);
+
+    mpu.init(delay).unwrap();
+
+    mpu.set_temp_enabled(false).unwrap();
+    mpu.set_gyro_range(GyroRange::D500).unwrap();
+    mpu.set_accel_range(AccelRange::G8).unwrap();
+
+    Ok(mpu)
+}
+```
+
+Si inizia creando un'istanza dell'oggetto `Mpu6050`, passando come argomento il driver I2C. Successivamente, il sensore viene inizializzato e configurato per adattarsi alle esigenze del sistema. La configurazione prevede i seguenti passaggi:
+
+- Disattivazione del sensore di temperatura, in quanto non necessario per la stabilizzazione del sistema.
+- Impostazione della sensibilità del giroscopio a ±500°/s, scelta che garantisce un buon compromesso tra precisione e capacità di rilevare rotazioni rapide senza saturazione.
+- Impostazione della sensibilità dell’accelerometro a ±8g, valore che permette di catturare sia piccole variazioni di assetto sia accelerazioni più intense senza compromettere la qualità delle misurazioni.
+
+Questa configurazione consente di bilanciare sensibilità e robustezza nei confronti di eventuali disturbi o vibrazioni. 
 
 #### Calibrazione del giroscopio
 
@@ -198,7 +232,7 @@ Per correggere questo bias, è stata implementata una strategia di calibrazione 
 
 Per determinare il numero ottimale di campioni $n$ da utilizzare nella calibrazione, sono stati considerati tre valori distinti, scelti arbitrariamente: 500, 1000 e 2000.
 
-Dopo aver applicato la calibrazione per ciascuno dei valori di $n$[^7], i risultati sono stati raccolti, analizzati e confrontati[^8]. L'analisi grafica ha evidenziato come l'aumento del numero di campioni $n$ porti a una riduzione progressiva del bias residuo. In particolare è stato osservato che utilizzando 2000 campioni, i valori medi del bias risultano essere i più vicini allo zero, indicando una calibrazione più accurata e stabile rispetto alle altre due configurazioni.
+Dopo aver applicato la calibrazione per ciascuno dei valori di $n$[^6], i risultati sono stati raccolti, analizzati e confrontati[^7]. L'analisi grafica ha evidenziato come l'aumento del numero di campioni $n$ porti a una riduzione progressiva del bias residuo. In particolare è stato osservato che utilizzando 2000 campioni, i valori medi del bias risultano essere i più vicini allo zero, indicando una calibrazione più accurata e stabile rispetto alle altre due configurazioni.
 
 <img alt="Confronto grafico calibrazioni" src="./data/imgs/calibrations.png" style="width: 50%"/>
 
@@ -258,7 +292,7 @@ L'accelerometro è un sensore in grado di misurare l'accelerazione lineare di un
 
 L'implementazione della stima dell'orientamento tramite accelerometro è semplice e immediata grazie all'uso della libreria _mpu6050_, che fornisce un metodo predefinito per calcolare rollio e beccheggio (`get_acc_angles`).
 
-Analogamente a quanto fatto per il [giroscopio](#calibrazione-del-giroscopio), l'accelerometro è stato calibrato utilizzando una serie di 2000 misurazioni. Come mostrato nel grafico, le misurazioni calibrate risultano più accurate, con valori che si avvicinano molto di più allo zero rispetto a quelli ottenuti senza calibrazione[^9].
+Analogamente a quanto fatto per il [giroscopio](#calibrazione-del-giroscopio), l'accelerometro è stato calibrato utilizzando una serie di 2000 misurazioni. Come mostrato nel grafico, le misurazioni calibrate risultano più accurate, con valori che si avvicinano molto di più allo zero rispetto a quelli ottenuti senza calibrazione[^8].
 
 <img alt="Confronto tra accelerometro calibrato e non" src="./data/imgs/accelerometer_calibrations.png" style="width: 50%"/>
 
@@ -286,7 +320,7 @@ Dove:
 
 La scelta del valore di $K$ è cruciale: un valore troppo elevato rischia di sovra pesare il contributo dell'accelerometro, amplificando i disturbi, mentre un valore troppo basso rallenta la correzione della deriva del giroscopio.
 
-Per determinare il valore più adatto, è stato condotto un esperimento[^10] testando i seguenti valori di $K$: $5, 2, 0.5, 0.05, 0.02$. È stato osservato che con $K=5$, il sistema genera valori di `+/-inf`, indicando dei overflow. Con $K=2$, la misurazione è risultata estremamente disturbata e instabile come si può osservare dal grafico sottostante.
+Per determinare il valore più adatto, è stato condotto un esperimento[^9] testando i seguenti valori di $K$: $5, 2, 0.5, 0.05, 0.02$. È stato osservato che con $K=5$, il sistema genera valori di `+/-inf`, indicando dei overflow. Con $K=2$, la misurazione è risultata estremamente disturbata e instabile come si può osservare dal grafico sottostante.
 
 <img alt="Confronto tra giroscopio e filtro complementare con K=2" src="./data/imgs/compl2.png" style="width: 50%"/>
 
@@ -302,7 +336,7 @@ Per implementare la stabilizzazione automatica è stato adottato un feedback loo
 
 #### Simulazione del PID
 
-Dato che inizialmente non era ancora stato sviluppato un modello fisico, è stata realizzata una simulazione[^11] semplificata per la configurazione del PID. Il moto di rotazione è stato modellato con la seguente equazione differenziale:
+Dato che inizialmente non era ancora stato sviluppato un modello fisico, è stata realizzata una simulazione[^10] semplificata per la configurazione del PID. Il moto di rotazione è stato modellato con la seguente equazione differenziale:
 $$
 \frac{dx}{dt} = -a x + bu
 $$
@@ -395,10 +429,9 @@ Questi parametri sono stati successivamente testati nello scenario 1, quello di 
 [^2]: Espressif docs, [LED Control (LEDC)](https://docs.espressif.com/projects/esp-idf/en/v5.2.2/esp32c3/api-reference/peripherals/ledc.html)
 [^3]: [LEDC features](https://www.espressif.com/sites/default/files/documentation/esp32-c3_technical_reference_manual_en.pdf#ledpwm)
 [^4]: [LEDC High and Low Speed Mode](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/ledc.html#ledc-high-and-low-speed-mode)
-[^5]: TODO: rimuovere [ESP32 Basics: Generating a PWM Signal on the ESP32](https://lastminuteengineers.com/esp32-pwm-tutorial/)
-[^6]: Test demo reperibile al tag `servo_error_test`
-[^7]: Demo calibrazione reperibile al tag `calibration`
-[^8]: Analisi in `data/Analysis.ipynb`
-[^9]: Demo calibrazione e stima dell'accelerometro al tag `accel_estimation`
-[^10]: Demo filtro complementare al tag `compl_filter`
-[^11]: Simulazione in `data/PID_simulation.ipynb`
+[^5]: Test demo reperibile al tag `servo_error_test`
+[^6]: Demo calibrazione reperibile al tag `calibration`
+[^7]: Analisi in `data/Analysis.ipynb`
+[^8]: Demo calibrazione e stima dell'accelerometro al tag `accel_estimation`
+[^9]: Demo filtro complementare al tag `compl_filter`
+[^10]: Simulazione in `data/PID_simulation.ipynb`
