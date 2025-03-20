@@ -12,6 +12,18 @@ use crate::Result;
 
 type MpuDriver<'a> = Mpu6050<I2cDriver<'a>>;
 
+#[derive(Debug)]
+pub enum Error {
+    MpuWakeup,
+    TemperatureToggle,
+    SetGyroRange,
+    SetAccelRange,
+    GyroscopeCalibration,
+    AccelerometerCalibration,
+    GetPitchRate,
+    GetAccelPitch,
+}
+
 const CALIBRATIONS: u16 = 2000;
 const K: f32 = 0.035;
 
@@ -26,21 +38,24 @@ impl<'a> PitchEstimator<'a> {
     fn setup_mpu<D: DelayNs>(delay: &mut D, i2c: I2cDriver<'a>) -> Result<MpuDriver<'a>> {
         let mut mpu = Mpu6050::new(i2c);
 
-        mpu.init(delay).unwrap();
+        mpu.init(delay).map_err(|_| Error::MpuWakeup)?;
 
-        mpu.set_temp_enabled(false).unwrap();
-        mpu.set_gyro_range(GyroRange::D500).unwrap();
-        mpu.set_accel_range(AccelRange::G8).unwrap();
+        mpu.set_temp_enabled(false)
+            .map_err(|_| Error::TemperatureToggle)?;
+        mpu.set_gyro_range(GyroRange::D500)
+            .map_err(|_| Error::SetGyroRange)?;
+        mpu.set_accel_range(AccelRange::G8)
+            .map_err(|_| Error::SetAccelRange)?;
 
         Ok(mpu)
     }
 
-    fn calibrate_gyro(mpu: &mut MpuDriver<'a>) -> f32 {
+    fn calibrate_gyro(mpu: &mut MpuDriver<'a>) -> Result<f32> {
         let mut p = 0_f32;
 
         let start_time = SystemTime::now();
         for _ in 0..CALIBRATIONS {
-            p += mpu.get_gyro().unwrap().x;
+            p += mpu.get_gyro().map_err(|_| Error::GetPitchRate)?.x;
         }
         let current = SystemTime::now();
         log::info!(
@@ -52,15 +67,15 @@ impl<'a> PitchEstimator<'a> {
                 .as_millis()
         );
 
-        p / CALIBRATIONS as f32
+        Ok(p / CALIBRATIONS as f32)
     }
 
-    fn calibrate_accel(mpu: &mut MpuDriver<'a>) -> f32 {
+    fn calibrate_accel(mpu: &mut MpuDriver<'a>) -> Result<f32> {
         let mut p = 0_f32;
 
         let start_time = SystemTime::now();
         for _ in 0..CALIBRATIONS {
-            p += mpu.get_acc_angles().unwrap().x;
+            p += mpu.get_acc_angles().map_err(|_| Error::GetAccelPitch)?.x;
         }
         let current = SystemTime::now();
         log::info!(
@@ -72,25 +87,27 @@ impl<'a> PitchEstimator<'a> {
                 .as_millis()
         );
 
-        p / CALIBRATIONS as f32
+        Ok(p / CALIBRATIONS as f32)
     }
 
     pub fn new(
         i2c: I2cDriver<'a>,
         cal_led: impl Peripheral<P = impl OutputPin>,
     ) -> Result<PitchEstimator<'a>> {
-        let mut led = PinDriver::output(cal_led).unwrap();
-        led.set_high().unwrap();
+        let mut led = PinDriver::output(cal_led)?;
+        led.set_high()?;
 
         let delay = &mut FreeRtos;
         log::info!("Starting Mpu set up...");
-        let mut mpu = Self::setup_mpu(delay, i2c)?;
+        let mut mpu = Self::setup_mpu(delay, i2c).map_err(|_| Error::MpuWakeup)?;
         log::info!("Finished Mpu set up.");
 
-        let gyro_calibration = Self::calibrate_gyro(&mut mpu);
-        let accel_calibration = Self::calibrate_accel(&mut mpu);
+        let gyro_calibration =
+            Self::calibrate_gyro(&mut mpu).map_err(|_| Error::GyroscopeCalibration)?;
+        let accel_calibration =
+            Self::calibrate_accel(&mut mpu).map_err(|_| Error::AccelerometerCalibration)?;
 
-        led.set_low().unwrap();
+        led.set_low()?;
 
         Ok(Self {
             mpu,
@@ -101,13 +118,18 @@ impl<'a> PitchEstimator<'a> {
     }
 
     fn get_pitch_rate(&mut self) -> Result<f32> {
-        let gyro = self.mpu.get_gyro().unwrap();
+        let gyro = self.mpu.get_gyro().map_err(|_| Error::GetPitchRate)?;
 
         Ok(gyro.x - self.gyro_calibration)
     }
 
     fn get_accel_pitch(&mut self) -> Result<f32> {
-        Ok(self.mpu.get_acc_angles().unwrap().x - self.accel_calibration)
+        Ok(self
+            .mpu
+            .get_acc_angles()
+            .map_err(|_| Error::GetAccelPitch)?
+            .x
+            - self.accel_calibration)
     }
 
     pub fn update(&mut self, dt: &f32) -> Result<()> {
