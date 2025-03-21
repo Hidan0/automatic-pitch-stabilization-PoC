@@ -32,7 +32,7 @@ log = { version = "0.4.25", default-features = false }
 esp-idf-svc = { version = "0.51", default-features = false }
 mpu6050 = { git = "https://github.com/juliangaal/mpu6050", rev = "acd71209d6b3a1316868a3f6711b0f13375adaff" }
 embedded-hal = { version = "1.0.0", default-features = false }
-derive_more = { version = "2.0.1", features = ["from"]}
+derive_more = { version = "2.0.1", features = ["from", "display"]}
 
 [build-dependencies]
 embuild = "0.33.0"

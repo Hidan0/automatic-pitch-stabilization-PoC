@@ -1,5 +1,6 @@
 use std::time::SystemTime;
 
+use derive_more::Display;
 use embedded_hal::delay::DelayNs;
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::{OutputPin, PinDriver};
@@ -12,15 +13,23 @@ use crate::Result;
 
 type MpuDriver<'a> = Mpu6050<I2cDriver<'a>>;
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
 pub enum Error {
+    #[display("Failed to wake up MPU6050")]
     MpuWakeup,
+    #[display("Failed to toggle temperature sensor")]
     TemperatureToggle,
+    #[display("Failed to set gyroscope range")]
     SetGyroRange,
+    #[display("Failed to set accelerometer range")]
     SetAccelRange,
+    #[display("Failed to calibrate gyroscope")]
     GyroscopeCalibration,
+    #[display("Failed to calibrate accelerometer")]
     AccelerometerCalibration,
+    #[display("Failed to get pitch rate")]
     GetPitchRate,
+    #[display("Failed to get pitch angle from accelerometer")]
     GetAccelPitch,
 }
 

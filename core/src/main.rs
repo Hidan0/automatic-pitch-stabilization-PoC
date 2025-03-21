@@ -14,6 +14,8 @@ mod servo;
 
 pub use self::error::{Error, Result};
 
+const I2C_BAUDRATE: Hertz = Hertz(200000);
+
 const UPDATE_TIME_MS: u8 = 4;
 const ERROR_SIGNAL_UPDATE_TIME_MS: u32 = 500;
 const DELTA_TIME: f32 = UPDATE_TIME_MS as f32 / 1000.;
@@ -25,7 +27,7 @@ fn main() {
     let peripherals = match Peripherals::take() {
         Ok(p) => p,
         Err(e) => {
-            log::error!("Can not take system peripherals.\n{e}");
+            log::error!("Can not take system peripherals: {e}");
             return;
         }
     };
@@ -33,7 +35,7 @@ fn main() {
     let mut error_led = match PinDriver::input_output(peripherals.pins.gpio8) {
         Ok(e_r) => e_r,
         Err(e) => {
-            log::error!("Can not create pin driver for error led.\n{e}");
+            log::error!("Can not create pin driver for error led: {e}");
             return;
         }
     };
@@ -54,11 +56,11 @@ fn main() {
 
     let cal_led = peripherals.pins.gpio7;
 
-    let i2c_config = I2cConfig::default().baudrate(Hertz(200000));
+    let i2c_config = I2cConfig::default().baudrate(I2C_BAUDRATE);
     let i2c_driver = match I2cDriver::new(peripherals.i2c0, sda, scl, &i2c_config) {
         Ok(i2c) => i2c,
         Err(e) => {
-            log::error!("Failed to create i2c driver.\n{e}");
+            log::error!("Failed to create i2c driver: {e}");
             error_signal_loop();
             return;
         }
@@ -67,7 +69,7 @@ fn main() {
     let mut pitch_estimator = match PitchEstimator::new(i2c_driver, cal_led) {
         Ok(pe) => pe,
         Err(e) => {
-            log::error!("Can not create pitch estimator:\n{e}");
+            log::error!("Can not create pitch estimator: {e}");
             error_signal_loop();
             return;
         }
@@ -80,25 +82,25 @@ fn main() {
     ) {
         Ok(p) => p,
         Err(e) => {
-            log::error!("Can not create servo driver for pitch surface:\n{e}");
+            log::error!("Can not create servo driver for pitch surface: {e}");
             error_signal_loop();
             return;
         }
     };
 
     if let Err(e) = pitch_surface.write_angle(0) {
-        log::error!("Can not move the pitch surface to neutral position:\n{e}");
+        log::error!("Can not move the pitch surface to neutral position: {e}");
         error_signal_loop();
         return;
     }
 
-    const K_P: f32 = 3.;
+    const K_P: f32 = 3.5;
     const K_I: f32 = 0.02;
 
     let mut pi_controller = match pitch_estimator.pitch() {
         Ok(initial_pitch) => PIController::new(K_P, K_I, initial_pitch.to_degrees()),
         Err(e) => {
-            log::error!("Can not get initial pitch angle.\n{e}");
+            log::error!("Can not get initial pitch angle: {e}");
             error_signal_loop();
             return;
         }
@@ -106,7 +108,7 @@ fn main() {
 
     loop {
         if let Err(e) = pitch_estimator.update(&DELTA_TIME) {
-            log::error!("Something went wrong during pitch estimation:\n{e}");
+            log::error!("Something went wrong during pitch estimation: {e}");
             error_signal_loop();
             return;
         }
@@ -114,16 +116,17 @@ fn main() {
         let p_angle = match pitch_estimator.pitch() {
             Ok(p) => p.to_degrees(),
             Err(e) => {
-                log::error!("Can not get current pitch angle:\n{e}");
+                log::error!("Can not get current pitch angle: {e}");
                 error_signal_loop();
                 return;
             }
         };
 
         let output = pi_controller.u(p_angle, &DELTA_TIME);
-        pitch_surface
-            .write_angle(-(output.clamp(-90., 90.) as i16))
-            .unwrap();
+        if let Err(e) = pitch_surface.write_angle(-(output.clamp(-90., 90.) as i16)) {
+            log::error!("Can not move pitch surface: {e}");
+            error_signal_loop();
+        };
 
         FreeRtos::delay_ms(UPDATE_TIME_MS.into());
     }

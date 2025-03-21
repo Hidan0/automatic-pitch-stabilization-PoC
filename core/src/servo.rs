@@ -1,3 +1,4 @@
+use derive_more::Display;
 use esp_idf_svc::hal::{
     gpio::OutputPin,
     ledc::{config::TimerConfig, LedcChannel, LedcDriver, LedcTimer, LedcTimerDriver, Resolution},
@@ -19,10 +20,13 @@ const FREQ: f32 = 20_000.;
 const FREQ_HZ: Hertz = Hertz(50);
 const RESOLUTION: Resolution = Resolution::Bits11;
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
 pub enum Error {
+    #[display("Failed to create LedcTimerDriver")]
     CreateLedcTimerDriver,
+    #[display("Failed to create LedcDriver")]
     CreateLedcDriver,
+    #[display("Failed to set duty cycle with value {value} ")]
     SetDuty { value: u32 },
 }
 
