@@ -8,15 +8,18 @@ L'obiettivo del progetto è lo sviluppo di un sistema di stabilizzazione automat
 
 Attraverso il progetto, si intendono sviluppare le competenze fondamentali nella progettazione di sistemi embedded come: la scelta della piattaforma hardware, sensori e attuatori più adatti al proprio scopo; la progettazione e l'implementazione di algoritmi di controllo e la scelta di protocolli di comunicazione per l'interfacciamento dei dispositivi.
 
+Inoltre, il progetto si pone l'obiettivo di esplorare l'uso di Rust con l'ecosistema *esp-rs* per lo sviluppo embedded. L'obiettivo è sfruttare le caratteristiche di sicurezza e affidabilità di Rust per scrivere codice più robusto ed efficiente, riducendo il rischio di errori comuni e garantendo un controllo stabile del sistema in tempo reale.
+
 ## Descrizione
 
 Il progetto consiste nello sviluppo di un sistema in grado di rilevare l'assetto di un aereo di carta, in particolare l'angolo di beccheggio, e di regolare di conseguenza l'inclinazione della superficie di controllo (elevatore), compensando eventuali deviazioni rispetto alla posizione desiderata.
 
-Il sistema è basato su un ESP32-C3 che gestisce i dati provenienti da un sensore IMU MPU6050 per rilevare l'ordientamento del velivolo e controlla il servomotore responsabile della regolazione della superficie di volo. Il software implementato sul SoC è progettato per interpretare i dati del sensore e applicare le correzioni necessarie per mantenere l'aereo in equilibrio.
+Il sistema è basato su un ESP32-C3 che gestisce i dati provenienti da un sensore IMU MPU6050 per rilevare l'orientamento del velivolo e controlla il servomotore responsabile della regolazione della superficie di volo. Il software implementato sul SoC è progettato per interpretare i dati del sensore e applicare le correzioni necessarie per mantenere l'aereo in equilibrio.
 
 ### Componentistica e librerie
 
 **Componenti elettronici**:
+
 - ESP32-C3
 - IMU MPU6050
 - SG90
@@ -38,15 +41,15 @@ Il sistema è basato su un ESP32-C3 che gestisce i dati provenienti da un sensor
 - Filo di metallo
 - Spiedi di bambù
 
-#### Architettura del sistema
+### Architettura del sistema
 
 TODO: schema e circuito
 
-#### Funzionamento del sistema
+### Funzionamento del sistema
 
 Il funzionamento del sistema può essere diviso in due parti principali: _stima dell'assetto_ e _stabilizzazione automatica del beccheggio attraverso il controllo PID_. 
 
-Nella fase di stima, inizialmente il sistema calibra l'MPU6050, per garantire misurazioni più accurate.  Successivamente, l'orientamento viene stimato a partire dai dati acquisiti dal sensore. La fase di stabilizzazione automatica viene gestita attraverso un feedback loop chiuso, che elabora i dati dell'assetto e determina il segnale di correzione da inviare al servomotore. Il sistema è progettato per funzionare con una frequenza di aggiornamento di $4ms$ ($250Hz$), garantendo una risposta rapida e sufficiente per lo scopo del progetto.
+Nella fase di stima, inizialmente il sistema calibra l'MPU6050, per garantire misurazioni più accurate. Successivamente, l'orientamento viene stimato a partire dai dati acquisiti dal sensore. La fase di stabilizzazione automatica viene gestita attraverso un feedback loop chiuso, che elabora i dati dell'assetto e determina il segnale di correzione da inviare al servomotore. Il sistema è progettato per funzionare con una frequenza di aggiornamento di $4ms$ ($250Hz$), garantendo una risposta rapida e sufficiente per lo scopo del progetto.
 
 Il flusso operativo del sistema può essere schematizzato come segue:
 
@@ -75,15 +78,11 @@ Inizialmente, il corpo dell'aereo aveva una forma rettangolare, lunga e stretta.
 
 ## Sviluppo e implementazione
 
-> NB: _negli snippet di codice non è presente il controllo degli errori_
-
 ### Modulo per la gestione del servomotore SG90
 
 Per controllare l'elevatore dell'aereo, è stato impiegato il servomotore SG90[^1], un motore standard leggero e di piccole dimensioni. Il servomotore può ruotare di circa 180 gradi (90 gradi per ogni direzione) e utilizza segnali di _modulazione di larghezza di impulso_ (PWM) per determinare la posizione dell'albero. 
 
 In particolare, la posizione neutra dell'elevatore corrisponde a un angolo di 0 gradi. Quando l'albero è ruotato a +90 gradi, l'elevatore si inclina verso l'alto di un angolo simile, mentre a -90 gradi si inclina verso il basso. L'angolo effettivo dell'elevatore non corrisponde esattamente a quello del servomotore, a causa di imprecisioni nella geometria del modello e nel collegamento tra l'albero del servo e l'albero dell'elevatore.
-
-Nei seguenti capitoli verranno descritte le scelte implementative adottate per il controllo del servo SG90, in particolare le modalità di generazione del segnale PWM e sulla determinazione della posizione dell'albero.
 
 #### Generare una PWM con l'ESP32-C3
 
@@ -350,7 +349,7 @@ dove:
 Il codice che implementa la simulazione è il seguente:
 
 ```python
-...
+# ... import delle librerie e inizializzazione
 
 # sim params
 dt = 0.004
@@ -366,7 +365,7 @@ def clamp(n, min_val, max_val):
 
 def simulate(Kp, Ki, Kd, sp, initial):
     n = len(Kp)
-    angle = np.full(n, initial) # initial
+    angle = np.full(n, initial)
     i = np.full(n, 0.)
     prev_err = sp - angle.copy()
     
@@ -421,9 +420,27 @@ Questi parametri sono stati successivamente testati nello scenario 1, quello di 
 
 #### Test pratico con il modello
 
+Per testare le due configurazioni del PID $[S_1=(K_p=2, K_i=0,K_d=0), \quad S_2=(K_p=10, K_i=0.15,K_d=0)]$, sono stati condotti due esperimenti: uno utilizzando un phon e l'altro con un ventilatore. Il phon generava un flusso d'aria più intenso ma concentrato in un cono stretto, mentre il ventilatore produceva un flusso più debole ma con un'area di copertura più ampia. Entrambi i test si sono rivelati inefficaci, poiché il corpo dell'aereo non reagiva ai flussi d'aria a causa della scarsa aerodinamicità e dell'assenza di portanza.
+
+Un aspetto significativo è emerso nel test con la configurazione $S_2$ e il phon: il corpo dell'aereo mostrava un movimento oscillatorio, causato dalle correzioni brusche del servomotore. Questo effetto era dovuto all'eccessiva reattività del sistema, con il servo che applicava forze alternate in modo repentino, confermando i dubbi sull'elevato valore di $K_p$.
+
+Nel tentativo di migliorare la risposta aerodinamica, il corpo è stato allargato e accorciato (come descritto in [Modello fisico](#modello-fisico)), ma i risultati sono rimasti invariati. Pertanto, si è scelto di regolare il PID in modo da ottenere la risposta visiva più stabile possibile.
+
+A tale scopo, il valore di $K_p$ nella configurazione $S_1$ si è rivelato troppo basso, risultando in una risposta eccessivamente lenta. Questo è dovuto al miglioramento della trasmissione del movimento tra il servomotore e l'elevatore, che ha reso la conversione dell'angolo più efficiente e precisa.
+
+Attraverso test pratici, è stato possibile identificare una configurazione più soddisfacente, con $K_p=3.5$ e $K_i = 0.02$. Questi valori hanno garantito una risposta più stabile, fluida e visivamente migliore. Di conseguenza, questa configurazione del controllore, più precisamente un PI, è stata adottata nel progetto finale.
+
+Demo in TODO.
+
+### Controllo degli errori
+
+TODO
+
+## Conclusione
+
+TODO
 
 
-## Riferimenti
 
 [^1]: [Servo motor SG90](http://www.ee.ic.ac.uk/pcheung/teaching/DE1_EE/stores/sg90_datasheet.pdf)
 [^2]: Espressif docs, [LED Control (LEDC)](https://docs.espressif.com/projects/esp-idf/en/v5.2.2/esp32c3/api-reference/peripherals/ledc.html)
