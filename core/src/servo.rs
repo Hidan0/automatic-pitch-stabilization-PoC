@@ -1,9 +1,14 @@
 use derive_more::Display;
-use esp_idf_svc::hal::{
-    gpio::OutputPin,
-    ledc::{config::TimerConfig, LedcChannel, LedcDriver, LedcTimer, LedcTimerDriver, Resolution},
-    peripheral::Peripheral,
-    units::Hertz,
+use esp_idf_svc::{
+    hal::{
+        gpio::OutputPin,
+        ledc::{
+            config::TimerConfig, LedcChannel, LedcDriver, LedcTimer, LedcTimerDriver, Resolution,
+        },
+        peripheral::Peripheral,
+        units::Hertz,
+    },
+    sys::EspError,
 };
 
 use crate::Result;
@@ -22,12 +27,12 @@ const RESOLUTION: Resolution = Resolution::Bits11;
 
 #[derive(Debug, Display)]
 pub enum Error {
-    #[display("Failed to create LedcTimerDriver")]
-    CreateLedcTimerDriver,
-    #[display("Failed to create LedcDriver")]
-    CreateLedcDriver,
-    #[display("Failed to set duty cycle with value {value} ")]
-    SetDuty { value: u32 },
+    #[display("Failed to create LedcTimerDriver. Error: {_0:?}")]
+    CreateLedcTimerDriver(EspError),
+    #[display("Failed to create LedcDriver. Error: {_0:?}")]
+    CreateLedcDriver(EspError),
+    #[display("Failed to set duty cycle with value {value}. Error: {error:?}")]
+    SetDuty { value: u32, error: EspError },
 }
 
 pub struct ServoSG90<'a> {
@@ -46,9 +51,10 @@ impl<'a> ServoSG90<'a> {
             resolution: RESOLUTION,
         };
         let timer_driver =
-            LedcTimerDriver::new(timer, &timer_config).map_err(|_| Error::CreateLedcTimerDriver)?;
+            LedcTimerDriver::new(timer, &timer_config).map_err(Error::CreateLedcTimerDriver)?;
         let driver =
-            LedcDriver::new(channel, timer_driver, gpio).map_err(|_| Error::CreateLedcDriver)?;
+            LedcDriver::new(channel, timer_driver, gpio).map_err(Error::CreateLedcDriver)?;
+        log::info!("LedcDriver created.");
 
         let max_duty = driver.get_max_duty() - 1;
 
@@ -60,9 +66,10 @@ impl<'a> ServoSG90<'a> {
             (MAX_MINUS_MIN_DUTY / MAX_MINUS_MIN_ANGLE * (angle as f32 - MIN_ANGLE)) + MIN_DUTY_US;
 
         let duty = (self.max_duty as f32 * angle_us / FREQ) as u32;
-        self.driver
-            .set_duty(duty)
-            .map_err(|_| Error::SetDuty { value: duty })?;
+        self.driver.set_duty(duty).map_err(|e| Error::SetDuty {
+            value: duty,
+            error: e,
+        })?;
 
         Ok(())
     }

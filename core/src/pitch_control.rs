@@ -4,10 +4,10 @@ use derive_more::Display;
 use embedded_hal::delay::DelayNs;
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::{OutputPin, PinDriver};
-use esp_idf_svc::hal::i2c::I2cDriver;
+use esp_idf_svc::hal::i2c::{I2cDriver, I2cError};
 use esp_idf_svc::hal::peripheral::Peripheral;
 use mpu6050::device::{AccelRange, GyroRange};
-use mpu6050::Mpu6050;
+use mpu6050::{Mpu6050, Mpu6050Error};
 
 use crate::Result;
 
@@ -15,22 +15,22 @@ type MpuDriver<'a> = Mpu6050<I2cDriver<'a>>;
 
 #[derive(Debug, Display)]
 pub enum Error {
-    #[display("Failed to wake up MPU6050")]
-    MpuWakeup,
-    #[display("Failed to toggle temperature sensor")]
-    TemperatureToggle,
-    #[display("Failed to set gyroscope range")]
-    SetGyroRange,
-    #[display("Failed to set accelerometer range")]
-    SetAccelRange,
+    #[display("Failed to wake up MPU6050. Error: {_0:?}")]
+    MpuWakeup(Mpu6050Error<I2cError>),
+    #[display("Failed to toggle temperature sensor. Error: {_0:?}")]
+    TemperatureToggle(Mpu6050Error<I2cError>),
+    #[display("Failed to set gyroscope range. Error: {_0:?}")]
+    SetGyroRange(Mpu6050Error<I2cError>),
+    #[display("Failed to set accelerometer range. Error: {_0:?}")]
+    SetAccelRange(Mpu6050Error<I2cError>),
     #[display("Failed to calibrate gyroscope")]
     GyroscopeCalibration,
     #[display("Failed to calibrate accelerometer")]
     AccelerometerCalibration,
-    #[display("Failed to get pitch rate")]
-    GetPitchRate,
-    #[display("Failed to get pitch angle from accelerometer")]
-    GetAccelPitch,
+    #[display("Failed to get pitch rate. Error: {_0:?}")]
+    GetPitchRate(Mpu6050Error<I2cError>),
+    #[display("Failed to get pitch angle from accelerometer. Error: {_0:?}")]
+    GetAccelPitch(Mpu6050Error<I2cError>),
 }
 
 const CALIBRATIONS: u16 = 2000;
@@ -47,14 +47,14 @@ impl<'a> PitchEstimator<'a> {
     fn setup_mpu<D: DelayNs>(delay: &mut D, i2c: I2cDriver<'a>) -> Result<MpuDriver<'a>> {
         let mut mpu = Mpu6050::new(i2c);
 
-        mpu.init(delay).map_err(|_| Error::MpuWakeup)?;
+        mpu.init(delay).map_err(Error::MpuWakeup)?;
 
         mpu.set_temp_enabled(false)
-            .map_err(|_| Error::TemperatureToggle)?;
+            .map_err(Error::TemperatureToggle)?;
         mpu.set_gyro_range(GyroRange::D500)
-            .map_err(|_| Error::SetGyroRange)?;
+            .map_err(Error::SetGyroRange)?;
         mpu.set_accel_range(AccelRange::G8)
-            .map_err(|_| Error::SetAccelRange)?;
+            .map_err(Error::SetAccelRange)?;
 
         Ok(mpu)
     }
@@ -64,7 +64,7 @@ impl<'a> PitchEstimator<'a> {
 
         let start_time = SystemTime::now();
         for _ in 0..CALIBRATIONS {
-            p += mpu.get_gyro().map_err(|_| Error::GetPitchRate)?.x;
+            p += mpu.get_gyro().map_err(Error::GetPitchRate)?.x;
         }
         let current = SystemTime::now();
         log::info!(
@@ -84,7 +84,7 @@ impl<'a> PitchEstimator<'a> {
 
         let start_time = SystemTime::now();
         for _ in 0..CALIBRATIONS {
-            p += mpu.get_acc_angles().map_err(|_| Error::GetAccelPitch)?.x;
+            p += mpu.get_acc_angles().map_err(Error::GetAccelPitch)?.x;
         }
         let current = SystemTime::now();
         log::info!(
@@ -108,7 +108,7 @@ impl<'a> PitchEstimator<'a> {
 
         let delay = &mut FreeRtos;
         log::info!("Starting Mpu set up...");
-        let mut mpu = Self::setup_mpu(delay, i2c).map_err(|_| Error::MpuWakeup)?;
+        let mut mpu = Self::setup_mpu(delay, i2c)?;
         log::info!("Finished Mpu set up.");
 
         let gyro_calibration =
@@ -127,18 +127,13 @@ impl<'a> PitchEstimator<'a> {
     }
 
     fn get_pitch_rate(&mut self) -> Result<f32> {
-        let gyro = self.mpu.get_gyro().map_err(|_| Error::GetPitchRate)?;
+        let gyro = self.mpu.get_gyro().map_err(Error::GetPitchRate)?;
 
         Ok(gyro.x - self.gyro_calibration)
     }
 
     fn get_accel_pitch(&mut self) -> Result<f32> {
-        Ok(self
-            .mpu
-            .get_acc_angles()
-            .map_err(|_| Error::GetAccelPitch)?
-            .x
-            - self.accel_calibration)
+        Ok(self.mpu.get_acc_angles().map_err(Error::GetAccelPitch)?.x - self.accel_calibration)
     }
 
     pub fn update(&mut self, dt: &f32) -> Result<()> {

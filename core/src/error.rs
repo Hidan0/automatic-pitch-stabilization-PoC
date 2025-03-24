@@ -12,6 +12,6 @@ pub enum Error {
 
     // -- Externals
     #[from]
-    #[display("ESP error: {_0}")]
-    Esp(esp_idf_svc::sys::EspError),
+    #[display("General ESP error: {_0}")]
+    GeneralEsp(esp_idf_svc::sys::EspError),
 }
