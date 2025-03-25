@@ -31,7 +31,10 @@ Il sistema è basato su un ESP32-C3 che gestisce i dati provenienti da un sensor
 
 - Linguaggio di programmazione: Rust
 - Ecosistema [esp-rs](https://github.com/esp-rs) per Rust
-- Libreria [mpu6050](https://crates.io/crates/mpu6050)
+- Librerie:
+  - [mpu6050](https://crates.io/crates/mpu6050)
+  - [derive_more](https://crates.io/crates/derive_more)
+
 
 **Componenti per il modello**:
 
@@ -433,6 +436,135 @@ Attraverso test pratici, è stato possibile identificare una configurazione più
 Demo in TODO.
 
 ### Controllo degli errori
+
+Per garantire un trattamento uniforme degli errori, si è utilizzato il tipo `Result<T, E>` insieme all'operatore `?`, sfruttando le funzionalità di Rust per semplificare la propagazione degli errori e migliorare la leggibilità del codice. Inoltre, sono stati implementati messaggi di errore e debug per facilitare l’identificazione dei problemi.
+
+Per fornire un feedback anche nel mondo fisico, è stato implementato un LED rosso che lampeggia in caso di errore. Questo approccio evita che il sistema si riavvii immediatamente, impedendone il "crash" e lasciando il tempo necessario per identificare il problema prima di un riavvio manuale.
+
+#### Strutture per la gestione degli errori
+
+Gli errori sono stati gestiti attraverso due strutture: `Result` ed `Error`.
+
+```rust
+// error.rs
+use derive_more::{Display, From};
+
+pub type Result<T> = core::result::Result<T, Error>;
+
+#[derive(Debug, From, Display)]
+pub enum Error {
+    // -- Modules
+    #[from]
+    Servo(crate::servo::Error),
+    #[from]
+    PitchControl(crate::pitch_control::Error),
+
+    // -- Externals
+    #[from]
+    #[display("General ESP error: {_0}")]
+    GeneralEsp(esp_idf_svc::sys::EspError),
+}
+```
+
+I moduli interni (`servo.rs` e `pitch_control.rs`) definiscono ciascuno un proprio `enum Error` per la gestione degli errori specifici, i quali vengono poi convertiti nell'errore generale del sistema. Inoltre, è stato introdotto un errore generico per l'ESP, in modo da gestire eventuali problemi proveniente del sistema sottostante.
+
+Per semplificare la gestione e propagazione degli errori, è stato utilizzato il create `derive_more`, che automatizza la conversione tra errori e la generazione di messaggi di errore leggibili.
+
+#### Propagazione e gestione degli errori nel _main_
+
+Tutti gli errori vengono propagati fino al `main` (grazie all'operatore `?`), che si occupa della loro gestione centralizzata. Questo approccio consente di mantenere il codice modulare e focalizzato sulle funzionalità principali all'interno delle singole funzioni, delegando la logica di gestione degli errori a un unico punto di controllo, migliorando così la leggibilità e la manutenibilità del codice.
+
+Un esempio di questo metodo è la funzione di inizializzazione dell'MPU6050:
+
+```rust
+fn setup_mpu<D: DelayNs>(delay: &mut D, i2c: I2cDriver<'a>) -> Result<MpuDriver<'a>> {
+    let mut mpu = Mpu6050::new(i2c);
+
+    mpu.init(delay).map_err(Error::MpuWakeup)?;
+
+    mpu.set_temp_enabled(false)
+    	.map_err(Error::TemperatureToggle)?;
+    mpu.set_gyro_range(GyroRange::D500)
+    	.map_err(Error::SetGyroRange)?;
+    mpu.set_accel_range(AccelRange::G8)
+    	.map_err(Error::SetAccelRange)?;
+
+    Ok(mpu)
+}
+```
+
+In questa implementazione, ogni operazione che potrebbe generare errore viene gestita con `map_err`, convertendo gli errori specifici in varianti dell'`enum Error`. Questo permette di propagare gli errori in modo chiaro ed efficace fino al `main`, dove possono essere gestiti nel modo opportuno.
+
+#### Error loop con LED
+
+Nel `main`, quando viene intercettato un errore, questo viene gestito attraverso una serie di operazioni mirate a fornire un feedback chiaro e immediato. In particolare:
+
+- Viene stampato un messaggio di errore in console, indicando il problema.
+- Viene attivata una procedura che fa lampeggiare il LED rosso (`error_signal_loop`) per segnalare visivamente l'errore. All'inizio di questa procedura, viene stampata in console il messaggio di errore con la possibile causa.
+
+
+
+Ecco un esempio di gestione dell'errore durante la creazione del `PitchEstimator`:
+
+```rust
+// main.rs
+let mut pitch_estimator = match PitchEstimator::new(i2c_driver, cal_led) {
+    Ok(pe) => pe,
+    Err(e) => {
+        log::error!("Can not create pitch estimator.");
+        error_signal_loop(e);
+        return;
+    }
+};
+```
+
+Se durante il setup del sensore questo non è alimentato o uno dei cavi di comunicazione è scollegato, l'operazione di inizializzazione fallirà. In particolare, la seguente riga di codice:
+
+```rust
+mpu.init(delay).map_err(Error::MpuWakeup)?;
+```
+
+Restituirà un errore, che verrà propagato fino al `main` e gestito come mostrato sopra. L'errore è definito nel modulo `pitch_estimator.rs` come segue:
+
+```rust
+// pitch_estimator.rs
+#[derive(Debug, Display)]
+pub enum Error {
+    #[display("Failed to wake up MPU6050. Error: {_0:?}")]
+    MpuWakeup(Mpu6050Error<I2cError>),
+    ...
+}
+```
+
+Quello che viene stampato in console è il seguente:
+
+```shell
+E (388) core: Can not create pitch estimator.
+E (398) core: Failed to wake up MPU6050. Error: I2c(I2cError { kind: NoAcknowledge(Unknown), cause: ESP_FAIL (error code -1) })
+```
+
+Questo approccio garantisce che gli errori vengano segnalati in modo chiaro sia nel dominio digitale (tramite i log di errore) sia nel mondo fisico (tramite il lampeggio del LED). Inoltre, il sistema evita di bloccarsi immediatamente, consentendo un'analisi dell'errore prima di un eventuale riavvio.
+
+
+
+Non sempre è possibile segnalare un errore tramite il lampeggio del LED. Per farlo, è necessario prima ottenere l'accesso alle periferiche di sistema tramite la seguente funzione:
+
+```rust
+let peripherals = match Peripherals::take() {
+    Ok(p) => p,
+    Err(e) => {
+        log::error!(
+            "Can not take system peripherals.\n\tEsp error code: {}",
+            e.code()
+        );
+        return;
+    }
+};
+```
+
+Se questa operazione fallisce, il programma non può proseguire e si verifica un errore fatale. Lo stesso problema si presenta nel caso in cui non sia possibile inizializzare il driver per il LED d'errore: senza di esso, il sistema non può fornire alcun feedback visivo.
+
+#### Errori per il servo
 
 TODO
 
