@@ -36,7 +36,7 @@ fn main() {
     };
     log::info!("Got peripheratls.");
 
-    let mut error_led = match PinDriver::input_output(peripherals.pins.gpio8) {
+    let mut error_led = match PinDriver::output(peripherals.pins.gpio8) {
         Ok(e_r) => e_r,
         Err(e) => {
             log::error!(
