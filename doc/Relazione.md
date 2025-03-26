@@ -564,9 +564,40 @@ let peripherals = match Peripherals::take() {
 
 Se questa operazione fallisce, il programma non può proseguire e si verifica un errore fatale. Lo stesso problema si presenta nel caso in cui non sia possibile inizializzare il driver per il LED d'errore: senza di esso, il sistema non può fornire alcun feedback visivo.
 
+
+
+Anche durante l'uso del driver del LED d'errore possono verificarsi problemi, in particolare quando si tenta di impostarlo su LOW o HIGH. Poiché l'API di *esp-rs* non è del tutto chiara riguardo ai casi in cui il toggle di un GPIO potrebbe fallire, si è deciso di gestire l'errore come un *warning* anziché come un errore fatale.
+
+```rust
+error_led.set_low().unwrap_or_else(|e| {
+    log::warn!(
+        "Can not set low error led, skipping...\n\tError code: {}",
+        e.code()
+    )
+});
+```
+
+In caso di errore – per motivi non documentati o difficili da prevedere – il sistema non fornirebbe un feedback visivo tramite il LED, ma registrerebbe un messaggio di avviso sulla console.
+
 #### Errori per il servo
 
-TODO
+Un altro aspetto da considerare nella gestioni degli errori riguarda il modulo `servo.rs`, in cui possono verificarsi errori durante la creazione del driver del timer, l'inizializzazione del driver e l'impostazione del duty cycle.
+
+```rust
+// fn new
+let timer_driver = LedcTimerDriver::new(timer, &timer_config).map_err(Error::CreateLedcTimerDriver)?;
+let driver = LedcDriver::new(channel, timer_driver, gpio).map_err(Error::CreateLedcDriver)?;
+
+// fn write_angle
+self.driver.set_duty(duty).map_err(|e| Error::SetDuty {
+    value: duty,
+    error: e,
+})?;
+```
+
+La  creazione del timer può fallire se vengono forniti parametri incompatibili. Per gli altri due casi, analogamente a quanto accade con il driver del LED, non è chiaro in quali circostanze possano verificarsi errori. Tuttavia, per garantire uniformità nella gestione degli errori, si è scelto di implementarli comunque.
+
+Una verifica esplicita che non viene effettuata è quella sull'intervallo dell'angolo passato alla funzione, ovvero se sia compreso tra -90° e 90°. In un'ipotetica libreria pubblica, questo controllo sarebbe opportuno, ma nel contesto del progetto non è necessario, poiché nel `main` l'angolo viene già limitato a questo intervallo.
 
 ## Conclusione
 
