@@ -46,9 +46,11 @@ Il sistema è basato su un ESP32-C3 che gestisce i dati provenienti da un sensor
 
 ### Funzionamento del sistema
 
-Il funzionamento del sistema può essere diviso in due parti principali: _stima dell'assetto_ e _stabilizzazione automatica del beccheggio attraverso il controllo PID_. 
+Il sistema opera nel seguente modo: inizialmente, l'MPU6050 viene calibrato per garantire misurazioni più accurate. Durante questa fase, il LED verde rimane acceso e si spegne al termine della calibrazione. Successivamente, il valore iniziale acquisito dal sensore viene utilizzato per impostare il target di riferimento.
 
-Nella fase di stima, inizialmente il sistema calibra l'MPU6050, per garantire misurazioni più accurate. Successivamente, l'orientamento viene stimato a partire dai dati acquisiti dal sensore. La fase di stabilizzazione automatica viene gestita attraverso un feedback loop chiuso, che elabora i dati dell'assetto e determina il segnale di correzione da inviare al servomotore. Il sistema è progettato per funzionare con una frequenza di aggiornamento di $4ms$ ($250Hz$), garantendo una risposta rapida e sufficiente per lo scopo del progetto.
+La stabilizzazione automatica avviene tramite un feedback loop chiuso, che analizza i dati relativi all'assetto e calcola il segnale di correzione da inviare al servomotore. Il sistema è progettato per operare con una frequenza di aggiornamento di $4ms$ ($250Hz$).
+
+In caso di errore durante l'esecuzione, viene attivata una procedura di segnalazione che fa lampeggiare il LED rosso, fornendo un feedback visivo sul problema.
 
 Il flusso operativo del sistema può essere schematizzato come segue:
 
@@ -83,6 +85,8 @@ Il corpo dell'aereo è costituito da una parte principale in cartoncino, sulla q
 Il servomotore è collegato all'elevatore tramite un filo metallico, che funge da asta di comando. L'asta è agganciata al braccio del servo da un lato e dall'altro a una piccola superficie verticale fissata sull'elevatore. Questo collegamento consente al servo di trasmettere il movimento al piano mobile. 
 
 L'intera struttura è montata su un telaio a forma di H, realizzato con bastoncini di bambù, che consente alla piattaforma superiore di ruotare liberamente attorno all'asse di beccheggio, simulando il movimento di un aeroplano in volo. La base di supporto del telaio è anch'essa realizzata in cartoncino.
+
+
 
 Inizialmente, il corpo dell'aereo aveva una forma rettangolare, lunga e stretta. Successivamente, nel tentativo di migliorare l'aerodinamicità, è stato leggermente accorciato e allargato. Questa modifica ha inoltre permesso di ottimizzare la lunghezza dell'asta di comando, garantendo una trasmissione del movimento più accurata.
 
@@ -153,6 +157,8 @@ pub fn write_angle(&mut self, angle: i16) -> Result<()> {
     Ok(())
 }
 ```
+
+
 
 Per implementare la funzione che "legge" l'angolo, è necessario derivare le funzioni inverse delle mappature precedenti. Questo processo consente di riconvertire il valore digitale del duty cycle e del segnale in microsecondi nell'angolo corrispondente in gradi. Le formule inverse sono:
 
@@ -238,8 +244,8 @@ Il sensore MPU6050 in condizioni ideali, dovrebbe restituire valori prossimi all
 Per correggere questo bias, è stata implementata una strategia di calibrazione "naive", che sebbene semplice, è efficace per eliminare il bias rilevato. La tecnica si articola nei seguenti passaggi:
 
 1. Acquisizione di $n$ campioni: vengono effettuate una serie di misurazioni statiche, acquisendo $n$ campioni consecutivi dei dati grezzi provenienti dal giroscopio. Durante questa fase, il sensore è mantenuto in una posizione stabile e senza movimento.
-2. Calcolo della media: i campioni acquisiti vengono utilizzati per calcolare la media dei valori per ciascun asse del giroscopio. Questo passaggio permette di stimare il valore medio del bias presente nel sensore.
-3. Sottrazione del bias: una volta calcolato il bias per ciascun asse, questo viene sottratto dai dati misurati durante il normale funzionamento del sensore.
+2. Calcolo della media: i campioni acquisiti vengono utilizzati per calcolare la media dei valori. Questo passaggio permette di stimare il valore medio del bias presente nel sensore.
+3. Sottrazione del bias: una volta calcolato il bias, questo viene sottratto dai dati misurati durante il normale funzionamento del sensore.
 
 ##### Scelta dei parametri di calibrazione del giroscopio
 
@@ -341,6 +347,8 @@ I risultati migliori si sono ottenuti con valori di $K$ inferiori a 1, in partic
 
 <img src="./data/imgs/compl05to002.png" style="width: 48%" /><img src="./data/imgs/compl002and005.png" style="width:48%" />
 
+
+
 Un algoritmo che offre una stima molto più precisa rispetto al filtro complementare è il **filtro di Kalman**. Tuttavia, a causa della sua complessità di implementazione e considerando il target del progetto, si è deciso di utilizzare il filtro complementare, che rappresenta una soluzione più semplice e adeguata per le esigenze attuali.
 
 ### Stabilizzazione del beccheggio
@@ -412,7 +420,7 @@ def simulate(Kp, Ki, Kd, sp, initial):
 
 La simulazione è stata utilizzata per testare il comportamento del PID in due scenari: _setpoint_ a 0° con errore iniziale di 45° e _setpoint_ a 90° con errore iniziale di 0°. Il primo rappresenta una situazione plausibile nel funzionamento reale del sistema, mentre il secondo è stato introdotto per testare il comportamento del controllore in condizioni differenti dal sistema.
 
-Per il primo scenario di test, sono stati sperimentati valori di $K_p$ pari a 1, 2 e 4. Durante le prove pratiche, ruotando fisicamente la board, si è osservato che con $K_p=2$ il sistema rispondeva in modo rapido ma senza risultare eccessivamente brusco. Valori superiori, come $K_p = 4$, portavano invece a una risposta troppo brusca del servo.
+Per il primo scenario di test, sono stati sperimentati valori di $K_p$ pari a 1, 2 e 4. Durante le prove pratiche, ruotando fisicamente il modello, si è osservato che con $K_p=2$ il sistema rispondeva in modo rapido ma senza risultare eccessivamente brusco. Valori superiori, come $K_p = 4$, portavano invece a una risposta troppo brusca del servo.
 
 L'introduzione dei termini $K_i$ e $K_d$ non ha portato miglioramenti significativi. Anzi, nei test pratici sono emersi due problemi di instabilità:
 
@@ -513,6 +521,23 @@ Nel `main`, quando viene intercettato un errore, questo viene gestito attraverso
 - Viene stampato un messaggio di errore in console, indicando il problema.
 - Viene attivata una procedura che fa lampeggiare il LED rosso (`error_signal_loop`) per segnalare visivamente l'errore. All'inizio di questa procedura, viene stampata in console il messaggio di errore con la possibile causa.
 
+```rust
+let mut error_signal_loop = |e: Error| {
+    log::error!("{e}");
+    loop {
+        error_led.toggle().unwrap_or_else(|e| {
+            log::warn!(
+                "Can not set high error led, skipping...\n\tError code: {}",
+                e.code()
+            )
+        });
+        FreeRtos::delay_ms(ERROR_SIGNAL_UPDATE_TIME_MS);
+    }
+};
+```
+
+
+
 
 
 Ecco un esempio di gestione dell'errore durante la creazione del `PitchEstimator`:
@@ -588,11 +613,11 @@ error_led.set_low().unwrap_or_else(|e| {
 });
 ```
 
-In caso di errore – per motivi non documentati o difficili da prevedere – il sistema non fornirebbe un feedback visivo tramite il LED, ma registrerebbe un messaggio di avviso sulla console.
+In caso di errore – per motivi non documentati o difficili da prevedere – il sistema non fornirebbe un feedback visivo tramite il LED, ma registrerebbe messaggi di avviso sulla console.
 
 #### Errori per il servo
 
-Un altro aspetto da considerare nella gestioni degli errori riguarda il modulo `servo.rs`, in cui possono verificarsi errori durante la creazione del driver del timer, l'inizializzazione del driver e l'impostazione del duty cycle.
+Un altro aspetto da considerare nella gestione degli errori riguarda il modulo `servo.rs`, in cui possono verificarsi errori durante la creazione del driver del timer, l'inizializzazione del driver e l'impostazione del duty cycle.
 
 ```rust
 // fn new
