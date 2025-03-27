@@ -44,10 +44,6 @@ Il sistema è basato su un ESP32-C3 che gestisce i dati provenienti da un sensor
 - Filo di metallo
 - Spiedi di bambù
 
-### Architettura del sistema
-
-TODO: schema e circuito
-
 ### Funzionamento del sistema
 
 Il funzionamento del sistema può essere diviso in due parti principali: _stima dell'assetto_ e _stabilizzazione automatica del beccheggio attraverso il controllo PID_. 
@@ -64,6 +60,21 @@ flowchart LR
 	d --> e(Attuazione della correzione)
 	e --> b
 ````
+
+### Circuito
+
+<img alt="Secondo scenario" src="./data/imgs/circuit.svg" style="width: 50%"/>
+
+> **Attenzione!**
+> Il SoC utilizzato nel circuito è un WeMos ESP8266 D1 Mini. Rispetto all'ESP32C3, la struttura rimane invariata, ma la nomenclatura dei pin differisce. Di seguito è riportata la corrispondenza tra i pin utilizzati:
+>
+> - `5V` -> `VBUS` (invariato)
+> - `G` -> `GND` (invariato)
+> - `D4` -> `6`
+> - `D3` -> `7`
+> - `D2` -> `8`
+> - `D8` -> `5`
+> - `D7` -> `4`
 
 ### Modello fisico
 
