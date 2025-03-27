@@ -637,7 +637,13 @@ Una verifica esplicita che non viene effettuata è quella sull'intervallo dell'a
 
 ## Conclusione
 
-TODO
+Il progetto ha permesso di sviluppare un sistema di stabilizzazione automatica per un aeroplano di carta, affrontando diverse sfide sia dal punto di vista hardware che software. L'integrazione di sensori e attuatori è stata un aspetto cruciale, così come la scelta di Rust per lo sviluppo embedded. Nonostante l'API di _esp-rs_ non fosse sempre ben documentata, specialmente per la gestione degli errori, Rust si è rivelato comunque una scelta vincente. In alcuni casi è stato necessario consultare la documentazione ufficiale di ESP-IDF per trovare funzioni simili e comprenderne il comportamento, ma questo ha anche permesso di approfondire il funzionamento della piattaforma.
+
+Uno degli aspetti più interessanti è stato lo sviluppo della stima dell'assetto. Si è partiti da una semplice misurazione basata sul giroscopio fino ad arrivare a un algoritmo di fusione complementare, migliorando significativamente la qualità dei dati utilizzati per il controllo. Anche il testing del PID ha rappresentato un'importante fase di sperimentazione: sebbene il modello non fosse sufficientemente aerodinamico per un controllo preciso in volo, il regolatore è stato configurato per offrire una risposta visiva efficace. Un'altra competenza acquisita è stata la configurazione e generazione di un segnale PWM per il controllo del servomotore, comprendendo il funzionamento delle periferiche interne del microcontrollore.
+
+Dal punto di vista software, l'utilizzo di Rust ha garantito maggiore sicurezza e affidabilità, soprattutto nella gestione degli errori. L'uso del sistema di tipi e dell'operatore `?` ha reso il codice più modulare e robusto, semplificando la propagazione degli errori fino al livello principale del programma.
+
+In definitiva, il progetto ha rappresentato un'importante occasione di apprendimento, sia dal punto di vista della progettazione hardware e software, sia nell'approfondimento delle tecniche di controllo e gestione degli errori. L'esperienza ha confermato il valore di Rust nel mondo embedded, aprendo la strada a future applicazioni più complesse.
 
 
 
