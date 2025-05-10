@@ -452,7 +452,9 @@ A tale scopo, il valore di $K_p$ nella configurazione $S_1$ si è rivelato tropp
 
 Attraverso test pratici, è stato possibile identificare una configurazione più soddisfacente, con $K_p=3.5$ e $K_i = 0.02$. Questi valori hanno garantito una risposta più stabile, fluida e visivamente migliore. Di conseguenza, questa configurazione del controllore, più precisamente un PI, è stata adottata nel progetto finale.
 
-Demo in TODO.
+
+
+Una dimostrazione del funzionamento è disponibile nel file `demo/demo.mp4`.
 
 ### Controllo degli errori
 
@@ -615,6 +617,10 @@ error_led.set_low().unwrap_or_else(|e| {
 
 In caso di errore – per motivi non documentati o difficili da prevedere – il sistema non fornirebbe un feedback visivo tramite il LED, ma registrerebbe messaggi di avviso sulla console.
 
+
+
+Una dimostrazione della segnalazione dell'errore è disponibile nel file `demo/error_demo.mp4`.
+
 #### Errori per il servo
 
 Un altro aspetto da considerare nella gestione degli errori riguarda il modulo `servo.rs`, in cui possono verificarsi errori durante la creazione del driver del timer, l'inizializzazione del driver e l'impostazione del duty cycle.
@@ -656,4 +662,4 @@ In definitiva, il progetto ha rappresentato un'importante occasione di apprendim
 [^7]: Analisi in `data/Analysis.ipynb`
 [^8]: Demo calibrazione e stima dell'accelerometro al tag `accel_estimation`
 [^9]: Demo filtro complementare al tag `compl_filter`
-[^10]: Simulazione in `data/PID_simulation.ipynb`
+[^10]: Simulazione in /`data/PID_simulation.ipynb`
